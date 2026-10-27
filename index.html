@@ -35,6 +35,8 @@ button.b.d{background:var(--r)}
 .pg button{padding:12px;border:1px solid var(--b);border-radius:6px;background:#fff;cursor:pointer;font:inherit}
 .pg button:hover{border-color:var(--a)}
 @media print{header,nav,.np{display:none}}
+.cg{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px}
+.cg .card{margin:0}
 </style>
 </head>
 <body>
@@ -52,6 +54,7 @@ button.b.d{background:var(--r)}
 </div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script>
 const SB_URL='https://fjzlexvgrgtlzrvotmlc.supabase.co',SB_KEY='sb_publishable_vgl3rKOBQ1-wsEgLzUEQ5w_3vXomKMn';
 const sb=supabase.createClient(SB_URL,SB_KEY);
@@ -121,6 +124,7 @@ function go(m){
   if(m=='sales'){fillPr('S');lnr('S')}
   if(m=='purchases'){fillPr('P');lnr('P')}
   if(m=='pos'&&curSh()){pg();posr()}
+  if(m=='dash')charts();
 }
 
 /* ====== المحاسبة (قيد مزدوج) ====== */
@@ -455,6 +459,40 @@ return `<div class="card"><h3>كشف الرواتب</h3><div class="row np"><lab
 ${tbl(['الموظف','الأساسي','البدلات','مكافآت','غياب','تأخير','بدون أجر','جزاءات','تأمينات','سلف','الصافي',''],rows.map(r=>[esc(r.name),f(r.basic),f(r.allow),f(r.bonus),f(r.abd),f(r.ltd),f(r.upd),f(r.pen),f(r.ins),f(r.loan),`<b>${f(r.net)}</b>`,`<button class="b np" onclick="slip(${r.id},'${m}')">إيصال</button>`]))}</div>`}
 };
 
+/* ====== الرسوم البيانية ====== */
+let chs=[];
+const ymd=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+function charts(){
+  if(!window.Chart)return;
+  chs.forEach(c=>c.destroy());chs=[];
+  Chart.defaults.font.family="'IBM Plex Sans Arabic',Tahoma,sans-serif";
+  const C=['#12353a','#e0a030','#3fa796','#e76f51','#4a90d9','#8e6bbf','#5aa469'],
+  lg={legend:{rtl:true,textDirection:'rtl',labels:{usePointStyle:true,padding:14}}},
+  mk=(id,cfg,has)=>{
+    const e=$('#'+id);if(!e)return;
+    if(!has){e.parentNode.innerHTML='<p style="text-align:center;color:#778;padding-top:90px">لا توجد بيانات بعد</p>';return}
+    chs.push(new Chart(e,{...cfg,options:{responsive:true,maintainAspectRatio:false,...(cfg.options||{})}}));
+  },
+  now=new Date(),b=bal();
+  const ms=[...Array(6)].map((_,i)=>ymd(new Date(now.getFullYear(),now.getMonth()-5+i,1)).slice(0,7)),
+  rs=ACC.filter(a=>a[2]=='R').map(a=>a[0]),xs=ACC.filter(a=>a[2]=='X').map(a=>a[0]),rv=ms.map(()=>0),ex=ms.map(()=>0);
+  db.je.forEach(j=>{const i=ms.indexOf(j.d.slice(0,7));if(i<0)return;j.l.forEach(l=>{if(rs.includes(l[0]))rv[i]+=l[2]-l[1];if(xs.includes(l[0]))ex[i]+=l[1]-l[2]})});
+  mk('c1',{type:'bar',data:{labels:ms.map(m=>new Date(m+'-15').toLocaleDateString('ar-EG',{month:'long'})),datasets:[
+    {label:'الإيرادات',data:rv.map(r2),backgroundColor:C[2],borderRadius:8},
+    {label:'المصروفات',data:ex.map(r2),backgroundColor:C[3],borderRadius:8},
+    {type:'line',label:'الربح',data:rv.map((v,i)=>r2(v-ex[i])),borderColor:C[1],backgroundColor:C[1],tension:.35,borderWidth:3,pointRadius:4}]},options:{plugins:lg}},rv.some(v=>v)||ex.some(v=>v));
+  const ds=[...Array(14)].map((_,i)=>ymd(new Date(now.getFullYear(),now.getMonth(),now.getDate()-13+i))),dv=ds.map(()=>0);
+  db.inv.forEach(i=>{const k=ds.indexOf(i.d);if(k>=0&&(i.t=='S'||i.t=='SR'))dv[k]+=i.t=='S'?i.net:-i.net});
+  mk('c5',{type:'line',data:{labels:ds.map(d=>d.slice(8)+'/'+d.slice(5,7)),datasets:[{label:'صافي المبيعات',data:dv.map(r2),borderColor:C[4],backgroundColor:'rgba(74,144,217,.18)',fill:true,tension:.35,borderWidth:3,pointRadius:3}]},options:{plugins:lg}},dv.some(v=>v));
+  const T=trs().filter(a=>b[a[0]]>0);
+  mk('c2',{type:'doughnut',data:{labels:T.map(a=>a[1]),datasets:[{data:T.map(a=>b[a[0]]),backgroundColor:C,borderWidth:3,borderColor:'#fff'}]},options:{cutout:'62%',plugins:lg}},T.length>0);
+  const E=ACC.filter(a=>a[2]=='X'&&b[a[0]]>0);
+  mk('c3',{type:'pie',data:{labels:E.map(a=>a[1]),datasets:[{data:E.map(a=>b[a[0]]),backgroundColor:C.slice().reverse(),borderWidth:3,borderColor:'#fff'}]},options:{plugins:lg}},E.length>0);
+  const pq={};db.inv.forEach(i=>{if(i.t=='S')i.l.forEach(l=>pq[l.id]=(pq[l.id]||0)+l.q*l.pr)});
+  const tp=Object.entries(pq).sort((x,y)=>y[1]-x[1]).slice(0,5);
+  mk('c4',{type:'bar',data:{labels:tp.map(x=>pn(x[0])),datasets:[{label:'قيمة المبيعات',data:tp.map(x=>r2(x[1])),backgroundColor:C,borderRadius:8}]},options:{indexAxis:'y',plugins:{legend:{display:false}}}},tp.length>0);
+}
+
 /* ====== الخزينة ====== */
 const trs=()=>ACC.filter(a=>a[3]),anm=k=>(ACC.find(a=>a[0]==k)||[])[1];
 const cpo=()=>`<optgroup label="العملاء">${db.parties.filter(p=>p.type=='C').map(p=>`<option value="C:${p.id}">${esc(p.name)}</option>`).join('')}</optgroup><optgroup label="الموردون">${db.parties.filter(p=>p.type=='S').map(p=>`<option value="S:${p.id}">${esc(p.name)}</option>`).join('')}</optgroup><optgroup label="الإيرادات والمصروفات والحسابات الأخرى">${ACC.filter(a=>!a[3]&&!['1100','2000','1200'].includes(a[0])).map(a=>`<option value="A:${a[0]}">${esc(a[1])} (${TY[a[2]]})</option>`).join('')}</optgroup>`;
@@ -639,7 +677,7 @@ function rep(){
 const V={
 dash(){
   const b=bal(),np=npf(b),sv=db.inv.filter(i=>i.t=='S');
-  return `<div class="grid">${[['النقدية والبنوك والمحافظ',trs().reduce((s,a)=>s+b[a[0]],0)],['مستحقات العملاء',b['1100']],['مستحقات الموردين',-b['2000']],['قيمة المخزون',b['1200']],['إجمالي المبيعات (صافي)',-b['4000']],['صافي الربح',np]].map(k=>`<div class="card"><div>${k[0]}</div><div class="k">${f(k[1])}</div></div>`).join('')}</div>`;
+  return `<div class="grid">${[['النقدية والبنوك والمحافظ',trs().reduce((s,a)=>s+b[a[0]],0)],['مستحقات العملاء',b['1100']],['مستحقات الموردين',-b['2000']],['قيمة المخزون',b['1200']],['إجمالي المبيعات (صافي)',-b['4000']],['صافي الربح',np]].map(k=>`<div class="card"><div>${k[0]}</div><div class="k">${f(k[1])}</div></div>`).join('')}</div><div class="cg" style="margin-top:14px">${[['c1','الإيرادات والمصروفات والربح (آخر 6 شهور)'],['c5','صافي المبيعات اليومية (آخر 14 يوم)'],['c2','توزيع النقدية والبنوك والمحافظ'],['c3','المصروفات حسب البند'],['c4','أكثر 5 أصناف مبيعًا']].map(c=>`<div class="card"><h3>${c[1]}</h3><div style="height:260px"><canvas id="${c[0]}"></canvas></div></div>`).join('')}</div>`;
 },
 pos(){
   const x=curSh();
