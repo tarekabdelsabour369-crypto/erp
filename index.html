@@ -59,9 +59,9 @@ const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const f=n=>Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
 const r2=x=>Math.round(x*100)/100,today=()=>new Date().toISOString().slice(0,10);
-const M=['dash','pos','sales','purchases','inventory','setup','hr','journal','reports','users'];
-const MN={dash:'الرئيسية',pos:'نقاط البيع',sales:'المبيعات',purchases:'المشتريات',inventory:'المخازن',setup:'التهيئة',hr:'الموارد البشرية',journal:'القيود',reports:'التقارير',users:'المستخدمون'};
-const ACC=[['1000','النقدية','A'],['1010','مقبوضات البطاقات','A'],['1020','المحافظ الإلكترونية','A'],['1100','العملاء','A'],['1400','سلف الموظفين','A'],['1200','المخزون','A'],['1300','ضريبة مدخلات','A'],['2000','الموردون','L'],['2100','ضريبة مخرجات','L'],['2200','رواتب مستحقة','L'],['2300','تأمينات مستحقة','L'],['3000','رأس المال','E'],['3100','أرصدة افتتاحية','E'],['4000','إيرادات المبيعات','R'],['5000','تكلفة البضاعة المباعة','X'],['5100','مصروفات عمومية','X'],['5200','الرواتب والأجور','X']];
+const M=['dash','pos','sales','purchases','cash','inventory','setup','hr','journal','reports','users'];
+const MN={dash:'الرئيسية',pos:'نقاط البيع',sales:'المبيعات',purchases:'المشتريات',cash:'الخزينة',inventory:'المخازن',setup:'التهيئة',hr:'الموارد البشرية',journal:'القيود',reports:'التقارير',users:'المستخدمون'};
+const ACC=[['1000','النقدية','A','cash'],['1010','مقبوضات البطاقات','A','bank'],['1020','المحافظ الإلكترونية','A','wallet'],['1100','العملاء','A'],['1400','سلف الموظفين','A'],['1200','المخزون','A'],['1300','ضريبة مدخلات','A'],['2000','الموردون','L'],['2100','ضريبة مخرجات','L'],['2200','رواتب مستحقة','L'],['2300','تأمينات مستحقة','L'],['3000','رأس المال','E'],['3100','أرصدة افتتاحية','E'],['4000','إيرادات المبيعات','R'],['4100','إيرادات أخرى','R'],['5000','تكلفة البضاعة المباعة','X'],['5100','مصروفات عمومية','X'],['5200','الرواتب والأجور','X'],['5300','إيجار','X'],['5400','كهرباء ومياه واتصالات','X'],['5500','مواصلات وانتقالات','X'],['5600','صيانة ونظافة','X']];
 const PA={cash:'1000',card:'1010',wallet:'1020'};
 let lastInv=0,hrt='emp',attD=new Date().toISOString().slice(0,10),payM=new Date().toISOString().slice(0,7);
 const TY={A:'أصل',L:'التزام',E:'حقوق ملكية',R:'إيراد',X:'مصروف'};
@@ -103,7 +103,7 @@ async function enter(u){
   const q=t=>sb.from(t).select('*');
   const[a,b,c,d,e,pa,ac,shf,em,hh]=await Promise.all([q('products'),q('invoices').order('id'),q('journal_entries').order('id'),q('settings'),q('profiles'),q('parties'),q('accounts'),q('shifts'),q('employees'),q('hr')]);
   db={products:(a.data||[]).map(x=>({...x,price:+x.price,q:+x.q,cost:+x.cost})),inv:(b.data||[]).map(x=>x.data),je:(c.data||[]).map(x=>x.data),vat:14,profiles:e.data||[],parties:(pa.data||[]).map(x=>x.data),shifts:(shf.data||[]).map(x=>x.data),emp:(em.data||[]).map(x=>x.data),hr:(hh.data||[]).map(x=>x.data)};
-  ACC.push(...(ac.data||[]).map(x=>[x.code,x.name,x.type]));
+  ACC.push(...(ac.data||[]).map(x=>[x.code,x.name,x.type,x.kind||null]));
   const v=(d.data||[]).find(x=>x.key=='vat');if(v)db.vat=+v.value;
   synced={inv:db.inv.length,je:db.je.length};
   $('#lg').style.display='none';$('#app').style.display='block';$('#who').textContent=me.name||me.email;
@@ -143,7 +143,7 @@ function sale(party,pay,items,d,pid,disc,pays){
   net=r2(net-(disc||0));cogs=r2(cogs);
   const tax=r2(net*db.vat/100),tot=r2(net+tax),id=nid();
   db.inv.push({id,t:'S',d,party,pid,pay,l:items,net,tax,tot,disc:disc||0,pays});
-  post(d,'فاتورة مبيعات #'+id,[...(pays?pays.map(x=>[PA[x.m],x.a,0]):[[pay=='cash'?'1000':'1100',tot,0,pid]]),['4000',0,net],['2100',0,tax],['5000',cogs,0],['1200',0,cogs]],'S'+id);
+  post(d,'فاتورة مبيعات #'+id,[...(pays?pays.map(x=>[PA[x.m],x.a,0]):[[pay=='credit'?'1100':(pay=='cash'?'1000':pay),tot,0,pid]]),['4000',0,net],['2100',0,tax],['5000',cogs,0],['1200',0,cogs]],'S'+id);
   return id;
 }
 function purchase(party,pay,items,d,pid){
@@ -153,7 +153,7 @@ function purchase(party,pay,items,d,pid){
   net=r2(net);
   const tax=r2(net*db.vat/100),tot=r2(net+tax),id=nid();
   db.inv.push({id,t:'P',d,party,pid,pay,l:items,net,tax,tot});
-  post(d,'فاتورة مشتريات #'+id,[['1200',net,0],['1300',tax,0],[pay=='cash'?'1000':'2000',0,tot,pid]],'P'+id);
+  post(d,'فاتورة مشتريات #'+id,[['1200',net,0],['1300',tax,0],[pay=='credit'?'2000':(pay=='cash'?'1000':pay),0,tot,pid]],'P'+id);
   return id;
 }
 
@@ -182,12 +182,12 @@ function saveInv(t){
     save();L.length=0;go(cur);alert('تم حفظ الفاتورة رقم '+id);
   }catch(e){alert(e.message)}
 }
-const list=t=>`<div class="card"><h3>آخر الفواتير</h3>${tbl(['#','التاريخ','الطرف','الدفع','الصافي','الضريبة','الإجمالي',''],db.inv.filter(i=>i.t[0]==t).slice(-20).reverse().map(i=>[i.id,i.d,esc(i.party),i.pay=='cash'?'نقدي':'آجل',f(i.net),f(i.tax),f(i.tot),i.t.length>1?'مرتجع للفاتورة '+i.ref:`<button class="b d" onclick="openRet(${i.id})">فاتورة مرتجع</button>`]))}</div>`;
+const list=t=>`<div class="card"><h3>آخر الفواتير</h3>${tbl(['#','التاريخ','الطرف','الدفع','الصافي','الضريبة','الإجمالي',''],db.inv.filter(i=>i.t[0]==t).slice(-20).reverse().map(i=>[i.id,i.d,esc(i.party),i.pay=='credit'?'آجل':(anm(i.pay)||'نقدي'),f(i.net),f(i.tax),f(i.tot),i.t.length>1?'مرتجع للفاتورة '+i.ref:`<button class="b d" onclick="openRet(${i.id})">فاتورة مرتجع</button>`]))}</div>`;
 function invUI(t){
   const S=t=='S';
   return `<div class="card"><h3>${S?'فاتورة مبيعات':'فاتورة مشتريات'}</h3>
   <div class="row"><label>${S?'العميل':'المورد'}<select id="pt"><option value="">${S?'عميل نقدي':'مورد عام'}</option>${db.parties.filter(p=>p.type==(S?'C':'S')).map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select></label><label>التاريخ<input id="dt" type="date" value="${today()}"></label>
-  <label>الدفع<select id="py"><option value="cash">نقدي</option><option value="credit">آجل</option></select></label></div>
+  <label>الدفع<select id="py">${trs().map(a=>`<option value="${a[0]}">${esc(a[1])}</option>`).join('')}<option value="credit">آجل</option></select></label></div>
   <div class="row"><label>الصنف<select id="ip" onchange="fillPr('${t}')">${db.products.map(p=>`<option value="${p.id}">${esc(p.name)} (${p.q})</option>`).join('')}</select></label>
   <label>الكمية<input id="iq" type="number" min="1" value="1" style="width:90px"></label>
   <label>السعر<input id="ipr" type="number" step="0.01" style="width:110px"></label>
@@ -327,7 +327,7 @@ function doRet(id){
       items.push({id:i.id,q,pr:i.pr});
     });
     if(!items.length)throw Error('أدخل كمية مرتجع لصنف واحد على الأقل');
-    const net=r2(items.reduce((s,i)=>s+i.q*i.pr,0)*(o.disc?o.net/(o.net+o.disc):1)),tax=o.net?r2(net*o.tax/o.net):0,tot=r2(net+tax),d=today(),acc=o.pay=='cash'?'1000':(S?'1100':'2000');
+    const net=r2(items.reduce((s,i)=>s+i.q*i.pr,0)*(o.disc?o.net/(o.net+o.disc):1)),tax=o.net?r2(net*o.tax/o.net):0,tot=r2(net+tax),d=today(),acc=o.pay=='credit'?(S?'1100':'2000'):(o.pay=='cash'?'1000':o.pay);
     if(S){
       const j=db.je.find(x=>x.ref=='S'+id),tq=o.l.reduce((s,i)=>s+i.q,0),uc=j&&tq?j.l.find(l=>l[0]=='5000')[1]/tq:0,cg=r2(items.reduce((s,i)=>s+i.q,0)*uc);
       items.forEach(i=>{const p=db.products.find(x=>x.id==i.id);if(p){p.cost=r2((p.q*p.cost+i.q*uc)/(p.q+i.q));p.q+=i.q}});
@@ -455,13 +455,51 @@ return `<div class="card"><h3>كشف الرواتب</h3><div class="row np"><lab
 ${tbl(['الموظف','الأساسي','البدلات','مكافآت','غياب','تأخير','بدون أجر','جزاءات','تأمينات','سلف','الصافي',''],rows.map(r=>[esc(r.name),f(r.basic),f(r.allow),f(r.bonus),f(r.abd),f(r.ltd),f(r.upd),f(r.pen),f(r.ins),f(r.loan),`<b>${f(r.net)}</b>`,`<button class="b np" onclick="slip(${r.id},'${m}')">إيصال</button>`]))}</div>`}
 };
 
+/* ====== الخزينة ====== */
+const trs=()=>ACC.filter(a=>a[3]),anm=k=>(ACC.find(a=>a[0]==k)||[])[1];
+const cpo=()=>`<optgroup label="العملاء">${db.parties.filter(p=>p.type=='C').map(p=>`<option value="C:${p.id}">${esc(p.name)}</option>`).join('')}</optgroup><optgroup label="الموردون">${db.parties.filter(p=>p.type=='S').map(p=>`<option value="S:${p.id}">${esc(p.name)}</option>`).join('')}</optgroup><optgroup label="الإيرادات والمصروفات والحسابات الأخرى">${ACC.filter(a=>!a[3]&&!['1100','2000','1200'].includes(a[0])).map(a=>`<option value="A:${a[0]}">${esc(a[1])} (${TY[a[2]]})</option>`).join('')}</optgroup>`;
+const upAcc=a=>sb.from('accounts').upsert(a).then(r=>{if(r.error)alert(r.error.message)});
+function vch(kind){
+  const t=$('#vt').value,v=r2(+$('#va').value),d=$('#vd').value||today(),c=$('#vc').value,ds=$('#vx').value.trim();
+  if(v<=0||!c)return alert('أدخل المبلغ واختر الطرف المقابل');
+  const[ty,id]=c.split(':'),pt=ty=='A'?null:db.parties.find(x=>x.id==+id),acc=ty=='C'?'1100':ty=='S'?'2000':id,nm=pt?pt.name:anm(id),pid=pt?pt.id:undefined,R=kind=='R',pf=R?'RV':'PV';
+  try{
+    const n=db.je.filter(j=>j.ref.startsWith(pf)).length+1;
+    post(d,(R?'سند قبض من ':'سند صرف إلى ')+nm+(ds?' - '+ds:''),R?[[t,v,0],[acc,0,v,pid]]:[[acc,v,0,pid],[t,0,v]],pf+n);
+    save();go('cash');
+  }catch(e){alert(e.message)}
+}
+function trf(){
+  const a=$('#tf').value,b=$('#tt').value,v=r2(+$('#tv').value);
+  if(a==b||v<=0)return alert('اختر حسابين مختلفين ومبلغاً صحيحاً');
+  try{const n=db.je.filter(j=>j.ref.startsWith('TR')).length+1;post(today(),'تحويل من '+anm(a)+' إلى '+anm(b),[[b,v,0],[a,0,v]],'TR'+n);save();go('cash')}catch(e){alert(e.message)}
+}
+function addTr(){
+  const kind=$('#tk').value,name=$('#tn').value.trim(),ob=r2(+$('#to').value||0);
+  if(!name)return alert('أدخل الاسم');
+  let c=Math.max(...trs().map(a=>+a[0]))+1;while(ACC.some(a=>a[0]==String(c)))c++;
+  const code=String(c);ACC.push([code,name,'A',kind]);upAcc({code,name,type:'A',kind});
+  if(ob>0){post(today(),'رصيد افتتاحي: '+name,[[code,ob,0],['3100',0,ob]]);save()}
+  go('cash');
+}
+function addCat(){
+  const ty=$('#ck').value,name=$('#cm').value.trim();
+  if(!name)return alert('أدخل اسم البند');
+  const code=String(Math.max(...ACC.filter(a=>a[2]==ty).map(a=>+a[0]))+10);
+  ACC.push([code,name,ty]);upAcc({code,name,type:ty});go('cash');
+}
+function vp(id){
+  const j=db.je.find(x=>x.id==id),dl=j.l.find(l=>l[1]>0),cl=j.l.find(l=>l[2]>0),T=j.ref.startsWith('TR')?'سند تحويل':j.ref.startsWith('RV')?'سند قبض':'سند صرف';
+  pw(`<div class="c"><b>${T}</b><br>رقم ${j.ref}<br>${j.d}</div><hr><table><tr><td>المبلغ</td><td><b>${f(dl[1])}</b></td></tr><tr><td>البيان</td><td>${esc(j.desc)}</td></tr><tr><td>من حساب</td><td>${esc(anm(cl[0]))}</td></tr><tr><td>إلى حساب</td><td>${esc(anm(dl[0]))}</td></tr></table><hr><div class="c">المستلم: ............ &nbsp; المحاسب: ............</div>`);
+}
+
 /* ====== Excel ====== */
 const TYM={'أصل':'A','التزام':'L','حقوق ملكية':'E','إيراد':'R','مصروف':'X'};
 const TPL={
  prod:{n:'الأصناف',h:['الاسم','الباركود','سعر البيع','الكمية','التكلفة'],x:['صنف تجريبي','6221234567890',50,10,30]},
  party:{n:'العملاء والموردين',h:['الاسم','النوع','الهاتف','الرصيد الافتتاحي'],x:['شركة المثال','عميل','01000000000',1000]},
  emp:{n:'الموظفون',h:['الاسم','الوظيفة','القسم','تاريخ التعيين','الراتب الأساسي','البدلات','نسبة التأمينات','الهاتف','الرقم القومي'],x:['أحمد علي','محاسب','الحسابات','2025-01-01',6000,500,11,'01000000000','']},
- acc:{n:'دليل الحسابات',h:['الكود','الاسم','النوع'],x:['5300','مصروف إيجار','مصروف']},
+ acc:{n:'دليل الحسابات',h:['الكود','الاسم','النوع'],x:['5700','مصروف ضيافة','مصروف']},
  ob:{n:'أرصدة افتتاحية',h:['كود الحساب','مدين','دائن'],x:['1000',5000,0]}
 };
 const xd=v=>typeof v=='number'?new Date(Math.round((v-25569)*864e5)).toISOString().slice(0,10):String(v||today()).slice(0,10);
@@ -520,7 +558,7 @@ function expAll(){
   const wb=XLSX.utils.book_new(),A=(n,a)=>XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(a.length?a:[{}]),n),an=k=>(ACC.find(a=>a[0]==k)||[])[1],hk=k=>db.hr.filter(x=>x.k==k);
   A('الأصناف',db.products.map(p=>({الاسم:p.name,الباركود:p.code||'',سعر_البيع:p.price,الكمية:p.q,متوسط_التكلفة:p.cost})));
   A('العملاء والموردين',db.parties.map(p=>({الاسم:p.name,النوع:p.type=='C'?'عميل':'مورد',الهاتف:p.phone,الرصيد:pbal(p)})));
-  A('الفواتير',db.inv.map(i=>({رقم:i.id,النوع:{S:'مبيعات',P:'مشتريات',SR:'مرتجع مبيعات',PR:'مرتجع مشتريات'}[i.t],التاريخ:i.d,الطرف:i.party,الدفع:i.pay=='cash'?'نقدي':'آجل',الصافي:i.net,الضريبة:i.tax,الإجمالي:i.tot,الخصم:i.disc||0,الأصناف:i.l.map(l=>pn(l.id)+' × '+l.q).join('، ')})));
+  A('الفواتير',db.inv.map(i=>({رقم:i.id,النوع:{S:'مبيعات',P:'مشتريات',SR:'مرتجع مبيعات',PR:'مرتجع مشتريات'}[i.t],التاريخ:i.d,الطرف:i.party,الدفع:i.pay=='credit'?'آجل':(anm(i.pay)||'نقدي'),الصافي:i.net,الضريبة:i.tax,الإجمالي:i.tot,الخصم:i.disc||0,الأصناف:i.l.map(l=>pn(l.id)+' × '+l.q).join('، ')})));
   A('القيود',db.je.flatMap(j=>j.l.map(l=>({رقم:j.id,التاريخ:j.d,البيان:j.desc,كود_الحساب:l[0],الحساب:an(l[0]),مدين:l[1],دائن:l[2]}))));
   const b=bal();A('أرصدة الحسابات',ACC.map(a=>({الكود:a[0],الحساب:a[1],النوع:TY[a[2]],الرصيد_مدين_دائن:b[a[0]]})));
   A('الموظفون',db.emp.map(e=>({الاسم:e.name,الوظيفة:e.job,القسم:e.dept,التعيين:e.hire,الأساسي:e.basic,البدلات:e.allow,التأمينات_نسبة:e.insp,الحالة:ST[e.status]})));
@@ -584,8 +622,8 @@ function rep(){
   }
   if(t=='cf'){
     let op=0,fin=0;
-    db.je.filter(j=>(!to||j.d<=to)&&(!fr||j.d>=fr)).forEach(j=>j.l.forEach(l=>{if(l[0]=='1000'){const v=l[1]-l[2];if(j.l.some(x=>x[0]=='3000'||x[0]=='3100'))fin+=v;else op+=v}}));
-    const o=bal(fr?prev(fr):'0000-00-00')['1000'];
+    db.je.filter(j=>(!to||j.d<=to)&&(!fr||j.d>=fr)).forEach(j=>j.l.forEach(l=>{if(ACC.some(a=>a[0]==l[0]&&a[3])){const v=l[1]-l[2];if(j.l.some(x=>x[0]=='3000'||x[0]=='3100'))fin+=v;else op+=v}}));
+    const bo=bal(fr?prev(fr):'0000-00-00'),o=trs().reduce((s,a)=>s+bo[a[0]],0);
     h=tbl(['البند','المبلغ'],[['التدفقات النقدية من الأنشطة التشغيلية',f(op)],['التدفقات النقدية من الأنشطة التمويلية',f(fin)],['<b>صافي التغير في النقدية</b>',f(op+fin)],['النقدية أول الفترة',f(o)],['<b>النقدية آخر الفترة</b>',f(o+op+fin)]]);
   }
   if(t=='eq'){
@@ -601,7 +639,7 @@ function rep(){
 const V={
 dash(){
   const b=bal(),np=npf(b),sv=db.inv.filter(i=>i.t=='S');
-  return `<div class="grid">${[['النقدية',b['1000']],['مستحقات العملاء',b['1100']],['مستحقات الموردين',-b['2000']],['قيمة المخزون',b['1200']],['إجمالي المبيعات (صافي)',-b['4000']],['صافي الربح',np]].map(k=>`<div class="card"><div>${k[0]}</div><div class="k">${f(k[1])}</div></div>`).join('')}</div>`;
+  return `<div class="grid">${[['النقدية والبنوك والمحافظ',trs().reduce((s,a)=>s+b[a[0]],0)],['مستحقات العملاء',b['1100']],['مستحقات الموردين',-b['2000']],['قيمة المخزون',b['1200']],['إجمالي المبيعات (صافي)',-b['4000']],['صافي الربح',np]].map(k=>`<div class="card"><div>${k[0]}</div><div class="k">${f(k[1])}</div></div>`).join('')}</div>`;
 },
 pos(){
   const x=curSh();
@@ -637,6 +675,16 @@ setup(){
 hr(){
   const T={emp:'الموظفون',att:'الحضور',lv:'الإجازات',ln:'السلف والمكافآت',pay:'الرواتب'};
   return `<div class="card np"><div class="row">${Object.keys(T).map(k=>`<button class="b ${k==hrt?'y':''}" onclick="hrt='${k}';go('hr')">${T[k]}</button>`).join('')}</div></div>`+H[hrt]();
+},
+cash(){
+  const b=bal(),T=trs(),o=T.map(a=>`<option value="${a[0]}">${esc(a[1])}</option>`).join(''),K={cash:'خزنة',bank:'بنك',wallet:'محفظة'};
+  return `<div class="grid">${T.map(a=>`<div class="card"><div>${esc(a[1])} <small>(${K[a[3]]})</small></div><div class="k">${f(b[a[0]])}</div></div>`).join('')}</div>
+  <div class="card"><h3>سند قبض أو صرف</h3><div class="row"><label>الخزنة أو البنك أو المحفظة<select id="vt">${o}</select></label><label>الطرف المقابل<select id="vc">${cpo()}</select></label><label>المبلغ<input id="va" type="number" step="0.01"></label><label>التاريخ<input id="vd" type="date" value="${today()}"></label><label>البيان<input id="vx"></label><button class="b y" onclick="vch('R')">سند قبض</button><button class="b d" onclick="vch('P')">سند صرف</button></div>
+  <small>قبض من عميل أو إيراد، وصرف لمورد أو مصروف. الأرصدة بتتحدث في كشف العميل والمورد تلقائيًا.</small></div>
+  <div class="card"><h3>تحويل بين الخزائن والبنوك والمحافظ</h3><div class="row"><label>من<select id="tf">${o}</select></label><label>إلى<select id="tt">${o}</select></label><label>المبلغ<input id="tv" type="number" step="0.01"></label><button class="b" onclick="trf()">تحويل</button></div></div>
+  <div class="card"><h3>إضافة خزنة أو بنك أو محفظة</h3><div class="row"><label>النوع<select id="tk"><option value="cash">خزنة</option><option value="bank">بنك</option><option value="wallet">محفظة إلكترونية</option></select></label><label>الاسم<input id="tn"></label><label>رصيد افتتاحي<input id="to" type="number" step="0.01" value="0"></label><button class="b y" onclick="addTr()">إضافة</button></div></div>
+  <div class="card"><h3>إضافة بند إيراد أو مصروف</h3><div class="row"><label>النوع<select id="ck"><option value="R">إيراد</option><option value="X">مصروف</option></select></label><label>اسم البند<input id="cm"></label><button class="b y" onclick="addCat()">إضافة</button></div></div>
+  <div class="card"><h3>آخر السندات</h3>${tbl(['الرقم','التاريخ','البيان','المبلغ',''],db.je.filter(j=>/^(RV|PV|TR)/.test(j.ref)).slice().reverse().slice(0,30).map(j=>[j.ref,j.d,esc(j.desc),f(j.l.find(l=>l[1]>0)[1]),`<button class="b" onclick="vp(${j.id})">طباعة</button>`]))}</div>`;
 },
 journal(){
   const o=ACC.map(a=>`<option value="${a[0]}">${a[0]} ${a[1]}</option>`).join('');
