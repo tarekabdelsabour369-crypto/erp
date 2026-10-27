@@ -51,6 +51,7 @@ button.b.d{background:var(--r)}
 <main id="main"></main>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
 const SB_URL='https://fjzlexvgrgtlzrvotmlc.supabase.co',SB_KEY='sb_publishable_vgl3rKOBQ1-wsEgLzUEQ5w_3vXomKMn';
 const sb=supabase.createClient(SB_URL,SB_KEY);
@@ -71,7 +72,7 @@ const can=m=>me&&(me.is_admin||(me.perms||[]).includes(m));
 const pn=id=>(db.products.find(p=>p.id==id)||{}).name||'؟';
 const tbl=(h,r)=>`<table><tr>${h.map(x=>`<th>${x}</th>`).join('')}</tr>${r.map(x=>`<tr>${x.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}</table>`;
 
-const nid=()=>Date.now()*10+Math.floor(Math.random()*10);
+let _l=0;const nid=()=>{let v=Date.now()*10+Math.floor(Math.random()*10);if(v<=_l)v=_l+1;return _l=v};
 const prev=d=>new Date(new Date(d)-864e5).toISOString().slice(0,10);
 let synced={inv:0,je:0};
 async function save(){
@@ -454,6 +455,94 @@ return `<div class="card"><h3>كشف الرواتب</h3><div class="row np"><lab
 ${tbl(['الموظف','الأساسي','البدلات','مكافآت','غياب','تأخير','بدون أجر','جزاءات','تأمينات','سلف','الصافي',''],rows.map(r=>[esc(r.name),f(r.basic),f(r.allow),f(r.bonus),f(r.abd),f(r.ltd),f(r.upd),f(r.pen),f(r.ins),f(r.loan),`<b>${f(r.net)}</b>`,`<button class="b np" onclick="slip(${r.id},'${m}')">إيصال</button>`]))}</div>`}
 };
 
+/* ====== Excel ====== */
+const TYM={'أصل':'A','التزام':'L','حقوق ملكية':'E','إيراد':'R','مصروف':'X'};
+const TPL={
+ prod:{n:'الأصناف',h:['الاسم','الباركود','سعر البيع','الكمية','التكلفة'],x:['صنف تجريبي','6221234567890',50,10,30]},
+ party:{n:'العملاء والموردين',h:['الاسم','النوع','الهاتف','الرصيد الافتتاحي'],x:['شركة المثال','عميل','01000000000',1000]},
+ emp:{n:'الموظفون',h:['الاسم','الوظيفة','القسم','تاريخ التعيين','الراتب الأساسي','البدلات','نسبة التأمينات','الهاتف','الرقم القومي'],x:['أحمد علي','محاسب','الحسابات','2025-01-01',6000,500,11,'01000000000','']},
+ acc:{n:'دليل الحسابات',h:['الكود','الاسم','النوع'],x:['5300','مصروف إيجار','مصروف']},
+ ob:{n:'أرصدة افتتاحية',h:['كود الحساب','مدين','دائن'],x:['1000',5000,0]}
+};
+const xd=v=>typeof v=='number'?new Date(Math.round((v-25569)*864e5)).toISOString().slice(0,10):String(v||today()).slice(0,10);
+function xl(wb,name){wb.Workbook={Views:[{RTL:true}]};XLSX.writeFile(wb,name+'-'+today()+'.xlsx')}
+function dlTpl(){
+  const t=TPL[$('#it').value],wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([t.h,t.x]),t.n);xl(wb,'نموذج-'+t.n);
+}
+async function impX(ev){
+  const file=ev.target.files[0];if(!file)return;
+  const k=$('#it').value,t=TPL[k];let rows;
+  try{const wb=XLSX.read(await file.arrayBuffer());rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''})}catch(e){return alert('تعذر قراءة الملف')}
+  if(!rows.length||t.h.some(h=>!(h in rows[0])))return alert('أعمدة الملف لا تطابق النموذج. حمّل النموذج واستخدمه كما هو.');
+  if(!confirm('استيراد '+rows.length+' صف إلى: '+t.n+'؟'))return;
+  let ok=0;const er=[],np=[],sx=v=>String(v).trim();
+  rows.forEach((r,i)=>{
+    try{
+      if(k=='prod'){
+        const name=sx(r['الاسم']),price=+r['سعر البيع'],q=+r['الكمية']||0,cost=+r['التكلفة']||0,code=sx(r['الباركود'])||null;
+        if(!name||!(price>=0)||q<0||cost<0||(code&&db.products.some(p=>p.code==code)))throw 0;
+        db.products.push({id:nid(),name,price,q,cost,code});
+        if(q>0&&cost>0){const v=r2(q*cost);post(today(),'رصيد افتتاحي: '+name,[['1200',v,0],['3100',0,v]])}
+      }
+      if(k=='party'){
+        const name=sx(r['الاسم']),ty={'عميل':'C','مورد':'S'}[sx(r['النوع'])],ob=r2(+r['الرصيد الافتتاحي']||0);
+        if(!name||!ty)throw 0;
+        const p={id:nid(),type:ty,name,phone:sx(r['الهاتف'])};db.parties.push(p);np.push({id:p.id,data:p});
+        if(ob>0)post(today(),'رصيد افتتاحي: '+name,ty=='C'?[['1100',ob,0,p.id],['3100',0,ob]]:[['3100',ob,0],['2000',0,ob,p.id]]);
+      }
+      if(k=='emp'){
+        const name=sx(r['الاسم']),b=+r['الراتب الأساسي'];
+        if(!name||!(b>0))throw 0;
+        const e={id:nid(),name,job:sx(r['الوظيفة']),dept:sx(r['القسم']),hire:xd(r['تاريخ التعيين']),phone:sx(r['الهاتف']),natid:sx(r['الرقم القومي']),basic:b,allow:+r['البدلات']||0,insp:+r['نسبة التأمينات']||0,status:'active'};
+        db.emp.push(e);np.push({id:e.id,data:e});
+      }
+      if(k=='acc'){
+        const code=sx(r['الكود']),name=sx(r['الاسم']),ty=TYM[sx(r['النوع'])];
+        if(!/^\d{3,6}$/.test(code)||!name||!ty||ACC.some(a=>a[0]==code))throw 0;
+        ACC.push([code,name,ty]);np.push({code,name,type:ty});
+      }
+      if(k=='ob'){
+        const kk=sx(r['كود الحساب']),d=r2(+r['مدين']||0),c=r2(+r['دائن']||0);
+        if(!ACC.some(a=>a[0]==kk)||['1100','2000','1200','3100'].includes(kk)||(d>0)==(c>0))throw 0;
+        post(today(),'رصيد افتتاحي: '+kk,d>0?[[kk,d,0],['3100',0,d]]:[['3100',c,0],[kk,0,c]]);
+      }
+      ok++;
+    }catch(e){er.push(i+2)}
+  });
+  const tb={party:'parties',emp:'employees',acc:'accounts'}[k];
+  if(tb&&np.length)sb.from(tb).upsert(np).then(r=>{if(r.error)alert(r.error.message)});
+  save();ev.target.value='';
+  alert('تم استيراد '+ok+' صف'+(er.length?'. صفوف تم تخطيها (أرقامها في الملف): '+er.slice(0,30).join('، '):''));
+  go('setup');
+}
+function expAll(){
+  const wb=XLSX.utils.book_new(),A=(n,a)=>XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(a.length?a:[{}]),n),an=k=>(ACC.find(a=>a[0]==k)||[])[1],hk=k=>db.hr.filter(x=>x.k==k);
+  A('الأصناف',db.products.map(p=>({الاسم:p.name,الباركود:p.code||'',سعر_البيع:p.price,الكمية:p.q,متوسط_التكلفة:p.cost})));
+  A('العملاء والموردين',db.parties.map(p=>({الاسم:p.name,النوع:p.type=='C'?'عميل':'مورد',الهاتف:p.phone,الرصيد:pbal(p)})));
+  A('الفواتير',db.inv.map(i=>({رقم:i.id,النوع:{S:'مبيعات',P:'مشتريات',SR:'مرتجع مبيعات',PR:'مرتجع مشتريات'}[i.t],التاريخ:i.d,الطرف:i.party,الدفع:i.pay=='cash'?'نقدي':'آجل',الصافي:i.net,الضريبة:i.tax,الإجمالي:i.tot,الخصم:i.disc||0,الأصناف:i.l.map(l=>pn(l.id)+' × '+l.q).join('، ')})));
+  A('القيود',db.je.flatMap(j=>j.l.map(l=>({رقم:j.id,التاريخ:j.d,البيان:j.desc,كود_الحساب:l[0],الحساب:an(l[0]),مدين:l[1],دائن:l[2]}))));
+  const b=bal();A('أرصدة الحسابات',ACC.map(a=>({الكود:a[0],الحساب:a[1],النوع:TY[a[2]],الرصيد_مدين_دائن:b[a[0]]})));
+  A('الموظفون',db.emp.map(e=>({الاسم:e.name,الوظيفة:e.job,القسم:e.dept,التعيين:e.hire,الأساسي:e.basic,البدلات:e.allow,التأمينات_نسبة:e.insp,الحالة:ST[e.status]})));
+  A('الحضور',hk('att').map(x=>({الموظف:eN(x.eid),التاريخ:x.d,الحالة:{p:'حاضر',a:'غائب',v:'إجازة'}[x.st],دقائق_التأخير:x.late})));
+  A('الإجازات',hk('lv').map(x=>({الموظف:eN(x.eid),النوع:LT[x.type],من:x.from,إلى:x.to,الأيام:x.days,الحالة:{pending:'قيد الموافقة',ok:'موافق',no:'مرفوض'}[x.st]})));
+  A('السلف',hk('ln').map(x=>({الموظف:eN(x.eid),المبلغ:x.amt,القسط:x.inst,المسدد:x.paid})));
+  A('كشوف الرواتب',hk('run').flatMap(r=>r.rows.map(x=>({الشهر:r.m,الموظف:x.name,الإجمالي:x.gross,الخصومات:x.ded,التأمينات:x.ins,السلف:x.loan,الصافي:x.net}))));
+  A('الورديات',db.shifts.map(x=>({الكاشير:x.name,الفتح:tm(x.open),الإقفال:x.close?tm(x.close):'',المتوقع:x.expected,الفعلي:x.counted,الفرق:x.diff})));
+  xl(wb,'ميزان-كل-البيانات');
+}
+function expRep(all){
+  const wb=XLSX.utils.book_new(),old=$('#rt').value;
+  (all?['tb','is','bs','eq','cf','vat','sh']:[old]).forEach(t=>{
+    $('#rt').value=t;rep();
+    const tb=document.querySelector('#ro table');
+    if(tb)XLSX.utils.book_append_sheet(wb,XLSX.utils.table_to_sheet(tb),$('#rt').selectedOptions[0].text.slice(0,30));
+  });
+  $('#rt').value=old;rep();
+  if(!wb.SheetNames.length)return alert('لا يوجد جدول لتصديره في هذا التقرير');
+  xl(wb,'ميزان-تقارير');
+}
+
 /* ====== التقارير ====== */
 function rep(){
   const t=$('#rt').value,fr=$('#rf').value,to=$('#rto').value;let h='';
@@ -541,7 +630,9 @@ setup(){
   <div class="card"><h3>فتح حساب جديد</h3><div class="row"><label>الكود<input id="ac" placeholder="مثال 5200"></label><label>الاسم<input id="an"></label><label>النوع<select id="at">${Object.keys(TY).map(k=>`<option value="${k}">${TY[k]}</option>`).join('')}</select></label><button class="b y" onclick="addAcc()">فتح الحساب</button></div>
   ${tbl(['الكود','الحساب','النوع'],ACC.map(a=>[a[0],a[1],TY[a[2]]]))}</div>
   <div class="card"><h3>رصيد افتتاحي لحساب</h3><div class="row"><label>الحساب<select id="ok">${o}</select></label><label>المبلغ<input id="ov" type="number" step="0.01"></label><label>الطبيعة<select id="os"><option value="d">مدين</option><option value="c">دائن</option></select></label><button class="b y" onclick="addOb()">ترحيل</button></div>
-  <small>أرصدة العملاء والموردين تُدخل عند إضافتهم، وأرصدة المخزون عند إضافة الصنف في شاشة المخازن.</small></div>`;
+  <small>أرصدة العملاء والموردين تُدخل عند إضافتهم، وأرصدة المخزون عند إضافة الصنف في شاشة المخازن.</small></div>
+  <div class="card"><h3>استيراد وتصدير Excel</h3><div class="row"><label>نوع البيانات<select id="it">${Object.keys(TPL).map(k=>`<option value="${k}">${TPL[k].n}</option>`).join('')}</select></label><button class="b" onclick="dlTpl()">تحميل النموذج</button><label>ملف Excel المعبأ<input type="file" accept=".xlsx,.xls,.csv" onchange="impX(event)"></label></div>
+  <button class="b y" onclick="expAll()">تصدير كل البيانات إلى Excel</button><p><small>حمّل النموذج واملأه ثم ارفعه كما هو. الصفوف الخاطئة تُتخطى ويظهر لك رقمها. تصدير التقارير من شاشة التقارير.</small></p></div>`;
 },
 hr(){
   const T={emp:'الموظفون',att:'الحضور',lv:'الإجازات',ln:'السلف والمكافآت',pay:'الرواتب'};
@@ -556,7 +647,7 @@ reports(){
   return `<div class="card np"><div class="row"><label>التقرير<select id="rt"><option value="tb">ميزان المراجعة</option><option value="is">قائمة الأرباح أو الخسائر</option><option value="bs">قائمة المركز المالي</option><option value="gl">دفتر الأستاذ</option><option value="vat">ضريبة القيمة المضافة</option><option value="cf">قائمة التدفقات النقدية</option><option value="eq">قائمة التغيرات في حقوق الملكية</option><option value="nt">الإيضاحات المتممة</option><option value="pa">كشف حساب عميل أو مورد</option><option value="sh">تقرير الورديات</option></select></label>
   <label>الحساب (للأستاذ)<select id="ra">${ACC.map(a=>`<option value="${a[0]}">${a[0]} ${a[1]}</option>`).join('')}</select></label>
   <label>العميل أو المورد<select id="rp">${db.parties.map(p=>`<option value="${p.id}">${esc(p.name)} (${p.type=='C'?'عميل':'مورد'})</option>`).join('')}</select></label><label>من<input id="rf" type="date"></label><label>إلى<input id="rto" type="date" value="${today()}"></label>
-  <button class="b y" onclick="rep()">عرض التقرير</button><button class="b" onclick="print()">طباعة</button></div></div><div class="card" id="ro">اختر التقرير ثم اضغط عرض.</div>`;
+  <button class="b y" onclick="rep()">عرض التقرير</button><button class="b" onclick="print()">طباعة</button><button class="b" onclick="expRep(0)">تصدير التقرير Excel</button><button class="b" onclick="expRep(1)">تصدير كل التقارير</button></div></div><div class="card" id="ro">اختر التقرير ثم اضغط عرض.</div>`;
 },
 users(){
   return `<div class="card"><h3>المستخدمون والصلاحيات</h3><p><small>كل مستخدم جديد ينشئ حسابه من شاشة الدخول، ثم تحدد صلاحياته من هنا.</small></p>
