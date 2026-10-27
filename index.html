@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>نظام المحاسبة</title>
+<title>ميزان | نظام المحاسبة والموارد البشرية</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Crect width='48' height='48' rx='12' fill='%2312353a'/%3E%3Cpath d='M24 9v27M14 37h20M24 13l-11 4M24 13l11 4' stroke='white' stroke-width='2.4' stroke-linecap='round' fill='none'/%3E%3Cpath d='M7 28l6-11 6 11a6 6 0 0 1-12 0zM29 28l6-11 6 11a6 6 0 0 1-12 0z' fill='%23e0a030'/%3E%3C/svg%3E">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;600&display=swap" rel="stylesheet">
 <style>
 :root{--p:#12353a;--a:#b9781a;--bg:#eef2f1;--b:#d3dcda;--t:#17262a;--r:#b3261e}
@@ -38,14 +39,14 @@ button.b.d{background:var(--r)}
 </head>
 <body>
 <div id="lg" class="card" style="max-width:330px;margin:70px auto">
-<h2>تسجيل الدخول</h2>
+<div style="text-align:center"><svg width="64" height="64" viewBox="0 0 48 48" aria-hidden="true"><rect width="48" height="48" rx="12" fill="#12353a"/><path d="M24 9v27M14 37h20M24 13l-11 4M24 13l11 4" stroke="#fff" stroke-width="2.4" stroke-linecap="round" fill="none"/><path d="M7 28l6-11 6 11a6 6 0 0 1-12 0zM29 28l6-11 6 11a6 6 0 0 1-12 0z" fill="#e0a030"/></svg><h2 style="margin:6px 0 0">ميزان</h2><small>نظام المحاسبة والموارد البشرية</small></div><h3 style="margin-top:14px">تسجيل الدخول</h3>
 <div class="row"><label style="width:100%">البريد الإلكتروني<input id="lu" type="email"></label></div>
 <div class="row"><label style="width:100%">كلمة المرور<input id="lp" type="password" onkeydown="if(event.key=='Enter')login()"></label></div>
 <p id="le" style="color:var(--r)"></p>
 <button class="b" onclick="login()">دخول</button> <button class="b y" onclick="signup()">إنشاء حساب</button>
 </div>
 <div id="app" style="display:none">
-<header><b>نظام المحاسبة</b><span id="who"></span><button class="b y" onclick="sb.auth.signOut().then(()=>location.reload())">تسجيل الخروج</button></header>
+<header><b style="display:flex;align-items:center;gap:8px"><svg width="30" height="30" viewBox="0 0 48 48" aria-hidden="true"><rect width="48" height="48" rx="12" fill="#12353a"/><path d="M24 9v27M14 37h20M24 13l-11 4M24 13l11 4" stroke="#fff" stroke-width="2.4" stroke-linecap="round" fill="none"/><path d="M7 28l6-11 6 11a6 6 0 0 1-12 0zM29 28l6-11 6 11a6 6 0 0 1-12 0z" fill="#e0a030"/></svg> ميزان</b><span id="who"></span><button class="b y" onclick="sb.auth.signOut().then(()=>location.reload())">تسجيل الخروج</button></header>
 <nav id="nav"></nav>
 <main id="main"></main>
 </div>
@@ -57,11 +58,11 @@ const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const f=n=>Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
 const r2=x=>Math.round(x*100)/100,today=()=>new Date().toISOString().slice(0,10);
-const M=['dash','pos','sales','purchases','inventory','setup','journal','reports','users'];
-const MN={dash:'الرئيسية',pos:'نقاط البيع',sales:'المبيعات',purchases:'المشتريات',inventory:'المخازن',setup:'التهيئة',journal:'القيود',reports:'التقارير',users:'المستخدمون'};
-const ACC=[['1000','النقدية','A'],['1010','مقبوضات البطاقات','A'],['1020','المحافظ الإلكترونية','A'],['1100','العملاء','A'],['1200','المخزون','A'],['1300','ضريبة مدخلات','A'],['2000','الموردون','L'],['2100','ضريبة مخرجات','L'],['3000','رأس المال','E'],['3100','أرصدة افتتاحية','E'],['4000','إيرادات المبيعات','R'],['5000','تكلفة البضاعة المباعة','X'],['5100','مصروفات عمومية','X']];
+const M=['dash','pos','sales','purchases','inventory','setup','hr','journal','reports','users'];
+const MN={dash:'الرئيسية',pos:'نقاط البيع',sales:'المبيعات',purchases:'المشتريات',inventory:'المخازن',setup:'التهيئة',hr:'الموارد البشرية',journal:'القيود',reports:'التقارير',users:'المستخدمون'};
+const ACC=[['1000','النقدية','A'],['1010','مقبوضات البطاقات','A'],['1020','المحافظ الإلكترونية','A'],['1100','العملاء','A'],['1400','سلف الموظفين','A'],['1200','المخزون','A'],['1300','ضريبة مدخلات','A'],['2000','الموردون','L'],['2100','ضريبة مخرجات','L'],['2200','رواتب مستحقة','L'],['2300','تأمينات مستحقة','L'],['3000','رأس المال','E'],['3100','أرصدة افتتاحية','E'],['4000','إيرادات المبيعات','R'],['5000','تكلفة البضاعة المباعة','X'],['5100','مصروفات عمومية','X'],['5200','الرواتب والأجور','X']];
 const PA={cash:'1000',card:'1010',wallet:'1020'};
-let lastInv=0;
+let lastInv=0,hrt='emp',attD=new Date().toISOString().slice(0,10),payM=new Date().toISOString().slice(0,7);
 const TY={A:'أصل',L:'التزام',E:'حقوق ملكية',R:'إيراد',X:'مصروف'};
 const npf=b=>-ACC.filter(a=>'RX'.includes(a[2])).reduce((s,a)=>s+b[a[0]],0);
 const KEY='acc_db_v1';
@@ -99,8 +100,8 @@ async function enter(u){
   if(error||!p)return $('#le').textContent='تعذر تحميل الحساب. تأكد من تشغيل ملف setup.sql';
   me=p;
   const q=t=>sb.from(t).select('*');
-  const[a,b,c,d,e,pa,ac,shf]=await Promise.all([q('products'),q('invoices').order('id'),q('journal_entries').order('id'),q('settings'),q('profiles'),q('parties'),q('accounts'),q('shifts')]);
-  db={products:(a.data||[]).map(x=>({...x,price:+x.price,q:+x.q,cost:+x.cost})),inv:(b.data||[]).map(x=>x.data),je:(c.data||[]).map(x=>x.data),vat:14,profiles:e.data||[],parties:(pa.data||[]).map(x=>x.data),shifts:(shf.data||[]).map(x=>x.data)};
+  const[a,b,c,d,e,pa,ac,shf,em,hh]=await Promise.all([q('products'),q('invoices').order('id'),q('journal_entries').order('id'),q('settings'),q('profiles'),q('parties'),q('accounts'),q('shifts'),q('employees'),q('hr')]);
+  db={products:(a.data||[]).map(x=>({...x,price:+x.price,q:+x.q,cost:+x.cost})),inv:(b.data||[]).map(x=>x.data),je:(c.data||[]).map(x=>x.data),vat:14,profiles:e.data||[],parties:(pa.data||[]).map(x=>x.data),shifts:(shf.data||[]).map(x=>x.data),emp:(em.data||[]).map(x=>x.data),hr:(hh.data||[]).map(x=>x.data)};
   ACC.push(...(ac.data||[]).map(x=>[x.code,x.name,x.type]));
   const v=(d.data||[]).find(x=>x.key=='vat');if(v)db.vat=+v.value;
   synced={inv:db.inv.length,je:db.je.length};
@@ -363,6 +364,96 @@ function addOb(){
   save();go('setup');
 }
 
+/* ====== الموارد البشرية ====== */
+const put=(t,o)=>sb.from(t).upsert({id:o.id,data:o}).then(r=>{if(r.error)alert(r.error.message)});
+const eN=id=>(db.emp.find(x=>x.id==id)||{}).name||'؟';
+const eo=()=>db.emp.filter(e=>e.status=='active').map(e=>`<option value="${e.id}">${esc(e.name)}</option>`).join('');
+const ST={active:'على رأس العمل',suspended:'موقوف',ended:'منتهي الخدمة'},LT={annual:'سنوية',casual:'عارضة',unpaid:'بدون أجر'},LB={annual:21,casual:6};
+const lbal=(id,t)=>LB[t]-db.hr.filter(x=>x.k=='lv'&&x.eid==id&&x.type==t&&x.st=='ok'&&x.from.slice(0,4)==today().slice(0,4)).reduce((s,x)=>s+x.days,0);
+function addEmp(){
+  const n=$('#en').value.trim(),b=+$('#eb').value;
+  if(!n||!(b>0))return alert('أدخل اسم الموظف والراتب الأساسي');
+  const e={id:nid(),name:n,job:$('#ej').value.trim(),dept:$('#ed').value.trim(),hire:$('#eh').value,phone:$('#ep').value.trim(),natid:$('#ei').value.trim(),basic:b,allow:+$('#ea').value||0,insp:+$('#es').value||0,status:'active'};
+  db.emp.push(e);put('employees',e);go('hr');
+}
+function empSt(i,v){db.emp[i].status=v;put('employees',db.emp[i])}
+function empSal(i){const e=db.emp[i],v=+prompt('الراتب الأساسي الجديد',e.basic);if(v>0){e.basic=v;put('employees',e);go('hr')}}
+function saveAtt(){
+  document.querySelectorAll('.as').forEach(el=>{
+    const eid=+el.dataset.e,old=db.hr.find(x=>x.k=='att'&&x.eid==eid&&x.d==attD),r=old||{id:nid(),k:'att',eid,d:attD};
+    r.st=el.value;r.late=+document.querySelector(`.al[data-e="${eid}"]`).value||0;
+    if(!old)db.hr.push(r);put('hr',r);
+  });
+  alert('تم حفظ الحضور');
+}
+function addLv(){
+  const eid=+$('#lE').value,from=$('#lF').value,to=$('#lU').value,days=Math.round((new Date(to)-new Date(from))/864e5)+1;
+  if(!eid||!(days>0))return alert('اختر الموظف وتواريخ صحيحة');
+  const r={id:nid(),k:'lv',eid,type:$('#lT').value,from,to,days,st:'pending'};db.hr.push(r);put('hr',r);go('hr');
+}
+function lvSt(id,st){
+  const r=db.hr.find(x=>x.id==id);
+  if(st=='ok'&&LB[r.type]&&r.days>lbal(r.eid,r.type))return alert('الرصيد المتبقي لا يكفي لهذه الإجازة');
+  r.st=st;put('hr',r);go('hr');
+}
+function addLoan(){
+  const eid=+$('#sE').value,amt=r2(+$('#sA').value),inst=r2(+$('#sI').value);
+  if(!eid||amt<=0||inst<=0)return alert('أدخل الموظف والمبلغ والقسط');
+  const r={id:nid(),k:'ln',eid,amt,inst,paid:0,d:today()};
+  try{post(today(),'سلفة للموظف '+eN(eid),[['1400',amt,0],['1000',0,amt]]);db.hr.push(r);put('hr',r);save();go('hr')}catch(e){alert(e.message)}
+}
+function addAdj(){
+  const eid=+$('#jE').value,amt=r2(+$('#jA').value);
+  if(!eid||amt<=0||!$('#jM').value)return alert('أدخل الموظف والشهر والمبلغ');
+  const r={id:nid(),k:'adj',eid,type:$('#jT').value,m:$('#jM').value,amt,desc:$('#jD').value.trim()};db.hr.push(r);put('hr',r);go('hr');
+}
+function calc(e,m){
+  const g=k=>db.hr.filter(x=>x.k==k&&x.eid==e.id),dr=(e.basic+e.allow)/30,at=g('att').filter(x=>x.d.startsWith(m));
+  const ab=at.filter(x=>x.st=='a').length,lt=at.reduce((s,x)=>s+(+x.late||0),0);
+  const up=g('lv').filter(x=>x.st=='ok'&&x.type=='unpaid'&&x.from.startsWith(m)).reduce((s,x)=>s+x.days,0);
+  const aj=g('adj').filter(x=>x.m==m),sm=t=>aj.filter(x=>x.type==t).reduce((s,x)=>s+x.amt,0);
+  const loan=r2(g('ln').reduce((s,x)=>s+Math.min(x.inst,x.amt-x.paid),0)),bonus=r2(sm('bonus')+sm('commission')),pen=r2(sm('penalty'));
+  const abd=r2(ab*dr),ltd=r2(lt/480*dr),upd=r2(up*dr),ins=r2(e.basic*(e.insp||0)/100),gross=r2(e.basic+e.allow+bonus),ded=r2(abd+ltd+upd+pen);
+  return{id:e.id,name:e.name,basic:e.basic,allow:e.allow,bonus,abd,ltd,upd,pen,ins,loan,gross,ded,net:r2(gross-ded-ins-loan)};
+}
+function runPay(){
+  const m=payM;
+  if(db.hr.some(x=>x.k=='run'&&x.m==m))return alert('تم اعتماد كشف هذا الشهر من قبل');
+  const rows=db.emp.filter(e=>e.status=='active').map(e=>calc(e,m));
+  if(!rows.length)return alert('لا يوجد موظفون على رأس العمل');
+  if(!confirm('اعتماد كشف رواتب شهر '+m+' وترحيل القيد؟'))return;
+  const sum=k=>r2(rows.reduce((s,r)=>s+r[k],0)),loan=sum('loan'),ins=sum('ins'),net=sum('net');
+  try{
+    post(today(),'رواتب شهر '+m,[['5200',r2(loan+ins+net),0],['1400',0,loan],['2300',0,ins],['2200',0,net]],'PAY'+m);
+    db.hr.filter(x=>x.k=='ln').forEach(x=>{const v=Math.min(x.inst,x.amt-x.paid);if(v>0){x.paid=r2(x.paid+v);put('hr',x)}});
+    const run={id:nid(),k:'run',m,rows,net,paid:0};db.hr.push(run);put('hr',run);save();go('hr');
+  }catch(e){alert(e.message)}
+}
+function payRun(id){
+  const run=db.hr.find(x=>x.id==id);
+  try{post(today(),'صرف رواتب شهر '+run.m,[['2200',run.net,0],['1000',0,run.net]]);run.paid=1;put('hr',run);save();go('hr')}catch(e){alert(e.message)}
+}
+function slip(id,m){
+  const run=db.hr.find(x=>x.k=='run'&&x.m==m),r=run?run.rows.find(x=>x.id==id):calc(db.emp.find(x=>x.id==id),m);
+  pw(`<div class="c"><b>إيصال راتب ${m}</b><br>${esc(r.name)}</div><hr><table>${[['الأساسي',r.basic],['البدلات',r.allow],['مكافآت وعمولات',r.bonus],['خصم غياب',-r.abd],['خصم تأخير',-r.ltd],['إجازة بدون أجر',-r.upd],['جزاءات',-r.pen],['تأمينات',-r.ins],['قسط سلفة',-r.loan]].map(x=>`<tr><td>${x[0]}</td><td>${f(x[1])}</td></tr>`).join('')}<tr><td><b>الصافي</b></td><td><b>${f(r.net)}</b></td></tr></table>`);
+}
+const H={
+emp(){return `<div class="card"><h3>إضافة موظف</h3><div class="row"><label>الاسم<input id="en"></label><label>الوظيفة<input id="ej"></label><label>القسم<input id="ed"></label><label>تاريخ التعيين<input id="eh" type="date" value="${today()}"></label><label>الهاتف<input id="ep"></label><label>الرقم القومي<input id="ei"></label><label>الراتب الأساسي<input id="eb" type="number" step="0.01"></label><label>البدلات<input id="ea" type="number" step="0.01" value="0"></label><label>خصم التأمينات %<input id="es" type="number" step="0.01" value="0" style="width:90px"></label><button class="b y" onclick="addEmp()">إضافة</button></div></div>
+<div class="card">${tbl(['الاسم','الوظيفة','القسم','التعيين','الأساسي','البدلات','الحالة',''],db.emp.map((e,i)=>[esc(e.name),esc(e.job),esc(e.dept),e.hire,f(e.basic),f(e.allow),`<select onchange="empSt(${i},this.value)">${Object.keys(ST).map(k=>`<option value="${k}" ${e.status==k?'selected':''}>${ST[k]}</option>`).join('')}</select>`,`<button class="b" onclick="empSal(${i})">تعديل الراتب</button>`]))}</div>`},
+att(){const rec=e=>db.hr.find(x=>x.k=='att'&&x.eid==e.id&&x.d==attD)||{};
+return `<div class="card"><h3>الحضور والانصراف</h3><div class="row"><label>التاريخ<input type="date" value="${attD}" onchange="attD=this.value;go('hr')"></label><button class="b y" onclick="saveAtt()">حفظ الحضور</button></div>${tbl(['الموظف','الحالة','دقائق التأخير'],db.emp.filter(e=>e.status=='active').map(e=>{const r=rec(e);return[esc(e.name),`<select class="as" data-e="${e.id}">${[['p','حاضر'],['a','غائب'],['v','إجازة']].map(o=>`<option value="${o[0]}" ${(r.st||'p')==o[0]?'selected':''}>${o[1]}</option>`).join('')}</select>`,`<input type="number" class="al" data-e="${e.id}" min="0" value="${r.late||0}" style="width:80px">`]}))}</div>`},
+lv(){return `<div class="card"><h3>طلب إجازة</h3><div class="row"><label>الموظف<select id="lE">${eo()}</select></label><label>النوع<select id="lT">${Object.keys(LT).map(k=>`<option value="${k}">${LT[k]}</option>`).join('')}</select></label><label>من<input id="lF" type="date" value="${today()}"></label><label>إلى<input id="lU" type="date" value="${today()}"></label><button class="b y" onclick="addLv()">تقديم الطلب</button></div></div>
+<div class="card"><h3>الأرصدة المتبقية هذا العام</h3>${tbl(['الموظف','سنوية','عارضة'],db.emp.filter(e=>e.status=='active').map(e=>[esc(e.name),lbal(e.id,'annual'),lbal(e.id,'casual')]))}</div>
+<div class="card"><h3>الطلبات</h3>${tbl(['الموظف','النوع','من','إلى','الأيام','الحالة',''],db.hr.filter(x=>x.k=='lv').slice().reverse().map(x=>[esc(eN(x.eid)),LT[x.type],x.from,x.to,x.days,{pending:'قيد الموافقة',ok:'موافق',no:'مرفوض'}[x.st],x.st=='pending'?`<button class="b" onclick="lvSt(${x.id},'ok')">موافقة</button> <button class="b d" onclick="lvSt(${x.id},'no')">رفض</button>`:'']))}</div>`},
+ln(){return `<div class="card"><h3>سلفة جديدة (تُصرف نقدًا)</h3><div class="row"><label>الموظف<select id="sE">${eo()}</select></label><label>المبلغ<input id="sA" type="number" step="0.01"></label><label>القسط الشهري<input id="sI" type="number" step="0.01"></label><button class="b y" onclick="addLoan()">صرف السلفة</button></div></div>
+<div class="card"><h3>مكافأة أو عمولة أو جزاء</h3><div class="row"><label>الموظف<select id="jE">${eo()}</select></label><label>النوع<select id="jT"><option value="bonus">مكافأة</option><option value="commission">عمولة</option><option value="penalty">جزاء</option></select></label><label>الشهر<input id="jM" type="month" value="${today().slice(0,7)}"></label><label>المبلغ<input id="jA" type="number" step="0.01"></label><label>البيان<input id="jD"></label><button class="b y" onclick="addAdj()">إضافة</button></div></div>
+<div class="card"><h3>السلف</h3>${tbl(['الموظف','المبلغ','القسط','المسدد','المتبقي'],db.hr.filter(x=>x.k=='ln').map(x=>[esc(eN(x.eid)),f(x.amt),f(x.inst),f(x.paid),f(x.amt-x.paid)]))}</div>
+<div class="card"><h3>المكافآت والجزاءات</h3>${tbl(['الموظف','النوع','الشهر','المبلغ','البيان'],db.hr.filter(x=>x.k=='adj').map(x=>[esc(eN(x.eid)),{bonus:'مكافأة',commission:'عمولة',penalty:'جزاء'}[x.type],x.m,f(x.amt),esc(x.desc)]))}</div>`},
+pay(){const m=payM,run=db.hr.find(x=>x.k=='run'&&x.m==m),rows=run?run.rows:db.emp.filter(e=>e.status=='active').map(e=>calc(e,m));
+return `<div class="card"><h3>كشف الرواتب</h3><div class="row np"><label>الشهر<input type="month" value="${m}" onchange="payM=this.value;go('hr')"></label>${run?(run.paid?'<b>تم صرف الرواتب</b>':`<button class="b y" onclick="payRun(${run.id})">صرف الرواتب نقدًا</button>`):'<button class="b y" onclick="runPay()">اعتماد الكشف وترحيل القيد</button>'}<button class="b" onclick="print()">طباعة الكشف</button></div>
+${tbl(['الموظف','الأساسي','البدلات','مكافآت','غياب','تأخير','بدون أجر','جزاءات','تأمينات','سلف','الصافي',''],rows.map(r=>[esc(r.name),f(r.basic),f(r.allow),f(r.bonus),f(r.abd),f(r.ltd),f(r.upd),f(r.pen),f(r.ins),f(r.loan),`<b>${f(r.net)}</b>`,`<button class="b np" onclick="slip(${r.id},'${m}')">إيصال</button>`]))}</div>`}
+};
+
 /* ====== التقارير ====== */
 function rep(){
   const t=$('#rt').value,fr=$('#rf').value,to=$('#rto').value;let h='';
@@ -451,6 +542,10 @@ setup(){
   ${tbl(['الكود','الحساب','النوع'],ACC.map(a=>[a[0],a[1],TY[a[2]]]))}</div>
   <div class="card"><h3>رصيد افتتاحي لحساب</h3><div class="row"><label>الحساب<select id="ok">${o}</select></label><label>المبلغ<input id="ov" type="number" step="0.01"></label><label>الطبيعة<select id="os"><option value="d">مدين</option><option value="c">دائن</option></select></label><button class="b y" onclick="addOb()">ترحيل</button></div>
   <small>أرصدة العملاء والموردين تُدخل عند إضافتهم، وأرصدة المخزون عند إضافة الصنف في شاشة المخازن.</small></div>`;
+},
+hr(){
+  const T={emp:'الموظفون',att:'الحضور',lv:'الإجازات',ln:'السلف والمكافآت',pay:'الرواتب'};
+  return `<div class="card np"><div class="row">${Object.keys(T).map(k=>`<button class="b ${k==hrt?'y':''}" onclick="hrt='${k}';go('hr')">${T[k]}</button>`).join('')}</div></div>`+H[hrt]();
 },
 journal(){
   const o=ACC.map(a=>`<option value="${a[0]}">${a[0]} ${a[1]}</option>`).join('');
