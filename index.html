@@ -107,7 +107,7 @@ async function enter(u){
   const[a,b,c,d,e,pa,ac,shf,em,hh,iv]=await Promise.all([q('products'),q('invoices').order('id'),q('journal_entries').order('id'),q('settings'),q('profiles'),q('parties'),q('accounts'),q('shifts'),q('employees'),q('hr'),q('inv')]);
   db={products:(a.data||[]).map(({ext,...x})=>({...x,...(ext||{}),price:+x.price,q:+x.q,cost:+x.cost})),inv:(b.data||[]).map(x=>x.data),je:(c.data||[]).map(x=>x.data),vat:14,profiles:e.data||[],parties:(pa.data||[]).map(x=>x.data),shifts:(shf.data||[]).map(x=>x.data),emp:(em.data||[]).map(x=>x.data),hr:(hh.data||[]).map(x=>x.data)};
   const IV=(iv.data||[]).map(x=>x.data);
-  Object.assign(db,{wh:[{id:'w0',name:'المخزن الرئيسي'},...IV.filter(x=>x.k=='wh').map(x=>({id:String(x.id),name:x.name}))],grp:IV.filter(x=>x.k=='grp'),loc:IV.filter(x=>x.k=='loc'),mvs:IV.filter(x=>x.k=='mv'),reps:IV.filter(x=>x.k=='rep'),visits:IV.filter(x=>x.k=='visit')});
+  Object.assign(db,{wh:[{id:'w0',name:'المخزن الرئيسي'},...IV.filter(x=>x.k=='wh').map(x=>({id:String(x.id),name:x.name}))],grp:IV.filter(x=>x.k=='grp'),loc:IV.filter(x=>x.k=='loc'),mvs:IV.filter(x=>x.k=='mv'),reps:IV.filter(x=>x.k=='rep'),visits:IV.filter(x=>x.k=='visit'),sds:IV.filter(x=>x.k=='sd')});
   const AC=ac.data||[];
   db.cc=AC.filter(x=>x.type=='CC').map(x=>({code:x.code,name:x.name}));
   AC.filter(x=>x.type!='CC').forEach(x=>{const o=ACC.find(y=>y[0]==x.code);if(o){o[4]=x.parent||o[4]||null}else ACC.push([x.code,x.name,x.type,x.kind||null,x.parent||null,!!x.ctl,!!x.hdr])});
@@ -305,7 +305,7 @@ function jm(){
   post($('#jd').value||today(),$('#jx').value.trim()||'قيد يدوي',[[a,v,0,undefined,cc],[c,0,v,undefined,cc]]);save();go('journal');
 }
 async function savePerms(id){
-  const perms=[...document.querySelectorAll(`[data-u="${id}"]:checked`)].map(x=>x.value);
+  const perms=[...[...document.querySelectorAll(`[data-u="${id}"]:checked`)].map(x=>x.value),...(db.profiles.find(x=>x.id==id).perms||[]).filter(x=>x.startsWith('wh:'))];
   const{error}=await sb.from('profiles').update({perms}).eq('id',id);
   if(error)return alert(error.message);
   db.profiles.find(x=>x.id==id).perms=perms;alert('تم حفظ الصلاحيات');
@@ -477,11 +477,11 @@ ${tbl(['الموظف','الأساسي','البدلات','مكافآت','غياب
 
 /* ====== المخازن المتعددة وكارت الصنف ====== */
 let invG='';
-const sq=(p,w)=>(p.st||{w0:p.q})[w]||0,posW=()=>($('#pw')&&$('#pw').value)||'w0';
+const sq=(p,w)=>(p.st||{w0:p.q})[w]||0,posW=()=>($('#pw')&&$('#pw').value)||visWh()[0].id;
 function mvq(p,w,q){if(!p.st)p.st={w0:p.q-q};p.st[w]=(p.st[w]||0)+q}
 const whN=id=>(db.wh.find(w=>w.id==id)||{}).name||'؟',gN=id=>(db.grp.find(g=>g.id==id)||{}).name||'',lN=id=>(db.loc.find(l=>l.id==id)||{}).name||'';
-const whOpts=()=>db.wh.map(w=>`<option value="${w.id}">${esc(w.name)}</option>`).join('');
-const whQ=p=>db.wh.map(w=>`${esc(w.name)}: ${sq(p,w.id)}${p.lc&&p.lc[w.id]?' ('+esc(lN(p.lc[w.id]))+')':''}`).join(' | ');
+const whOpts=()=>visWh().map(w=>`<option value="${w.id}">${esc(w.name)}</option>`).join('');
+const whQ=p=>visWh().map(w=>`${esc(w.name)}: ${sq(p,w.id)}${p.lc&&p.lc[w.id]?' ('+esc(lN(p.lc[w.id]))+')':''}`).join(' | ');
 function addWh(){const n=$('#wn').value.trim();if(!n)return alert('أدخل اسم المخزن');const r={id:nid(),k:'wh',name:n};put('inv',r);db.wh.push({id:String(r.id),name:n});go('inventory')}
 function addGrp(){const n=$('#gn').value.trim();if(!n)return alert('أدخل اسم المجموعة');const r={id:nid(),k:'grp',name:n};put('inv',r);db.grp.push(r);go('inventory')}
 function addLoc(){const n=$('#ln2').value.trim();if(!n)return alert('أدخل اسم المكان');const r={id:nid(),k:'loc',wh:$('#lw').value,name:n};put('inv',r);db.loc.push(r);go('inventory')}
@@ -530,6 +530,50 @@ function expKard(){
   const t=document.querySelector('#kcard table:last-of-type');
   if(!t)return alert('اعرض الكارت أولاً');
   const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.table_to_sheet(t),'كارت صنف');xl(wb,'كارت-صنف');
+}
+
+/* ====== أذونات المخازن ====== */
+let dcart=[];
+const myWh=()=>{const w=(me.perms||[]).filter(x=>x.startsWith('wh:')).map(x=>x.slice(3));return me.is_admin||!w.length?null:w};
+const visWh=()=>{const m=myWh();return m?db.wh.filter(w=>m.includes(w.id)):db.wh};
+const tq=p=>visWh().reduce((s,w)=>s+sq(p,w.id),0);
+function saveWh(id){
+  const u=db.profiles.find(x=>x.id==id),perms=[...(u.perms||[]).filter(x=>!x.startsWith('wh:')),...[...document.querySelectorAll(`[data-w="${id}"]:checked`)].map(x=>'wh:'+x.value)];
+  sb.from('profiles').update({perms}).eq('id',id).then(r=>{if(r.error)return alert(r.error.message);u.perms=perms;alert('تم ربط المخازن')});
+}
+function dAdd(){const id=+$('#dp').value,q=+$('#dq').value;if(!id||!(q>0))return alert('اختر صنفاً وكمية صحيحة');dcart.push({pid:id,q});dlr()}
+function dlr(){$('#dln').innerHTML=tbl(['الصنف','الكمية',''],dcart.map((l,i)=>[esc(pn(l.pid)),l.q,`<button class="b d" onclick="dcart.splice(${i},1);dlr()">حذف</button>`]))}
+function dSave(){
+  const r=db.reps.find(x=>x.id==+$('#dr').value),out=$('#dd').value=='out',w=$('#dw').value;
+  if(!r||!dcart.length)return alert('اختر المندوب وأضف أصنافاً للإذن');
+  const a=out?w:r.wh,b=out?r.wh:w,need={};
+  dcart.forEach(l=>need[l.pid]=(need[l.pid]||0)+l.q);
+  for(const k in need){const p=db.products.find(x=>x.id==k);if(sq(p,a)<need[k])return alert('الكمية غير كافية في '+whN(a)+': '+pn(k))}
+  const ty=out?'load':'rload',no=db.sds.filter(x=>x.type==ty).length+1,id=nid(),d=today();
+  dcart.forEach(l=>{const p=db.products.find(x=>x.id==l.pid);mvq(p,a,0);p.st[a]-=l.q;p.st[b]=(p.st[b]||0)+l.q;const m={id:nid(),k:'mv',type:'trf',pid:p.id,from:a,to:b,q:l.q,d};db.mvs.push(m);put('inv',m)});
+  const doc={id,k:'sd',type:ty,no,d,from:a,to:b,rep:r.id,lines:dcart.map(l=>({...l})),by:me.name||me.email};
+  db.sds.push(doc);put('inv',doc);dcart=[];save();go('inventory');dprint('sd',id);
+}
+function dprint(kind,id){
+  let D;
+  if(kind=='sd'){
+    const x=db.sds.find(y=>y.id==id),r=db.reps.find(y=>y.id==x.rep)||{},L=x.type=='load';
+    D={t:L?'إذن تحميل مندوب':'إذن مرتجع من مندوب',no:x.type+x.no,d:x.d,a:L?whN(x.from):'سيارة '+(r.name||''),b:L?'المندوب '+(r.name||''):whN(x.to),l:x.lines.map(l=>[pn(l.pid),l.q]),by:x.by};
+  }else{
+    const i=db.inv.find(y=>y.id==id),T={P:['إذن استلام بضاعة',1],S:['إذن تسليم بضاعة',0],SR:['إذن استلام مرتجع مبيعات',1],PR:['إذن تسليم مرتجع مشتريات',0]}[i.t],w=whN(i.wh||'w0');
+    D={t:T[0],no:i.t+i.id,d:i.d,a:T[1]?i.party:w,b:T[1]?w:i.party,l:i.l.map(l=>[pn(l.id),l.q]),by:''};
+  }
+  pw(`<div class="c"><b>${D.t}</b><br>رقم ${D.no}<br>${D.d}</div><hr><table><tr><td>من</td><td>${esc(D.a)}</td></tr><tr><td>إلى</td><td>${esc(D.b)}</td></tr></table><hr><table>${D.l.map(l=>`<tr><td>${esc(l[0])}</td><td>${l[1]}</td></tr>`).join('')}</table><hr><div class="c">أمين المخزن: ${esc(D.by||'............')} &nbsp; المستلم: ............</div>`);
+}
+function docCards(){
+  dcart=[];
+  const vw=visWh().map(w=>w.id),W0=x=>x||'w0',pO=db.products.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join(''),rO=db.reps.filter(r=>r.status=='on').map(r=>`<option value="${r.id}">${esc(r.name)}</option>`).join('');
+  const docs=[...db.sds.filter(x=>vw.includes(x.from)||vw.includes(x.to)).map(x=>({k:'sd',id:x.id,d:x.d,t:x.type=='load'?'إذن تحميل مندوب':'إذن مرتجع مندوب',no:x.type+x.no,w:whN(x.type=='load'?x.from:x.to),p:'مندوب: '+((db.reps.find(r=>r.id==x.rep)||{}).name||'')})),
+   ...db.inv.filter(i=>vw.includes(W0(i.wh))&&['P','S','SR','PR'].includes(i.t)).map(i=>({k:'inv',id:i.id,d:i.d,t:{P:'إذن استلام بضاعة',S:'إذن تسليم بضاعة',SR:'إذن استلام مرتجع مبيعات',PR:'إذن تسليم مرتجع مشتريات'}[i.t],no:i.t+i.id,w:whN(W0(i.wh)),p:i.party}))].sort((a,b)=>a.d<b.d?1:-1).slice(0,60);
+  return `<div class="card"><h3>إذن تحميل أو مرتجع مندوب</h3><div class="row"><label>المندوب<select id="dr">${rO}</select></label><label>العملية<select id="dd"><option value="out">تحميل للمندوب</option><option value="in">مرتجع من المندوب</option></select></label><label>المخزن<select id="dw">${whOpts()}</select></label></div>
+  <div class="row"><label>الصنف<select id="dp">${pO}</select></label><label>الكمية<input id="dq" type="number" min="1" style="width:90px"></label><button class="b y" onclick="dAdd()">إضافة للإذن</button></div><div id="dln"></div><button class="b" onclick="dSave()">حفظ الإذن وطباعته</button></div>
+  <div class="card"><h3>أذونات المخازن (استلام وتسليم وتحميل ومرتجع)</h3>${tbl(['التاريخ','النوع','الرقم','المخزن','الطرف',''],docs.map(x=>[x.d,x.t,x.no,esc(x.w),esc(x.p),`<button class="b" onclick="dprint('${x.k}',${x.id})">طباعة</button>`]))}<small>إذن الاستلام والتسليم بيتولد تلقائيًا من فواتير الشراء والبيع ومرتجعاتهم.</small></div>
+  `;
 }
 
 /* ====== المناديب ====== */
@@ -986,12 +1030,12 @@ inventory(){
   <div class="row"><label>مخزن جديد<input id="wn"></label><button class="b" onclick="addWh()">إضافة مخزن</button><label>مجموعة جديدة<input id="gn"></label><button class="b" onclick="addGrp()">إضافة مجموعة</button></div>
   <div class="row"><label>مكان تخزين (رف أو غرفة)<input id="ln2"></label><label>داخل المخزن<select id="lw">${wO}</select></label><button class="b" onclick="addLoc()">إضافة مكان</button></div>
   <div class="row"><label>الصنف<select id="sp">${pO}</select></label><label>المكان<select id="sl">${lO}</select></label><button class="b" onclick="setLoc()">تحديد مكان الصنف</button></div></div>
-  <div class="card"><h3>تحويل بين المخازن</h3><div class="row"><label>الصنف<select id="xp">${pO}</select></label><label>من<select id="xf">${wO}</select></label><label>إلى<select id="xt">${wO}</select></label><label>الكمية<input id="xq" type="number" min="1" style="width:90px"></label><button class="b" onclick="trfStock()">تحويل</button></div></div>
+  <div class="card"><h3>تحويل بين المخازن</h3><div class="row"><label>الصنف<select id="xp">${pO}</select></label><label>من<select id="xf">${wO}</select></label><label>إلى<select id="xt">${db.wh.map(w=>`<option value="${w.id}">${esc(w.name)}</option>`).join('')}</select></label><label>الكمية<input id="xq" type="number" min="1" style="width:90px"></label><button class="b" onclick="trfStock()">تحويل</button></div></div>
   <div class="card"><h3>جرد وتسوية</h3><div class="row"><label>الصنف<select id="ap">${pO}</select></label><label>المخزن<select id="aw">${wO}</select></label><label>الكمية الفعلية<input id="ac2" type="number" min="0" style="width:110px"></label><button class="b" onclick="adjStock()">تسوية الفرق</button></div><small>الفرق بيتسجل بقيد على المخزون والمصروفات بتكلفة الصنف.</small></div>
-  <div class="card"><h3>كارت الصنف</h3><div class="row"><label>الصنف<select id="kp">${pO}</select></label><label>المخزن<select id="kw"><option value="">كل المخازن</option>${wO}</select></label><button class="b y" onclick="cardUI()">عرض الكارت</button><button class="b" onclick="expKard()">تصدير Excel</button></div><div id="kcard"></div></div>
+  ${docCards()}<div class="card"><h3>كارت الصنف</h3><div class="row"><label>الصنف<select id="kp">${pO}</select></label><label>المخزن<select id="kw">${myWh()?'':'<option value="">كل المخازن</option>'}${wO}</select></label><button class="b y" onclick="cardUI()">عرض الكارت</button><button class="b" onclick="expKard()">تصدير Excel</button></div><div id="kcard"></div></div>
   <div class="card"><h3>أرصدة المخزون</h3><div class="row"><label>المجموعة<select onchange="invG=this.value;go('inventory')"><option value="">كل المجموعات</option>${gO.replace('value="'+invG+'"','value="'+invG+'" selected')}</select></label></div>
-  ${tbl(['#','الصنف','الباركود','المجموعة','سعر البيع','الإجمالي','حسب المخزن والمكان','متوسط التكلفة','القيمة'],db.products.filter(p=>!invG||p.grp==invG).map(p=>[p.id,esc(p.name),esc(p.code||''),esc(gN(p.grp)),f(p.price),p.q,whQ(p),f(p.cost),f(p.q*p.cost)]))}
-  <p>إجمالي قيمة المخزون: <b>${f(db.products.reduce((s,p)=>s+p.q*p.cost,0))}</b></p></div>`;
+  ${tbl(['#','الصنف','الباركود','المجموعة','سعر البيع','الإجمالي','حسب المخزن والمكان','متوسط التكلفة','القيمة'],db.products.filter(p=>!invG||p.grp==invG).map(p=>[p.id,esc(p.name),esc(p.code||''),esc(gN(p.grp)),f(p.price),tq(p),whQ(p),f(p.cost),f(tq(p)*p.cost)]))}
+  <p>إجمالي قيمة المخزون: <b>${f(db.products.reduce((s,p)=>s+tq(p)*p.cost,0))}</b></p></div>`;
 },
 setup(){
   const o=ACC.filter(a=>postable(a)&&a[0]!='3100').map(a=>`<option value="${a[0]}">${a[0]} ${a[1]}</option>`).join('');
@@ -1033,8 +1077,7 @@ reps(){
   const b=bal(),rO=db.reps.map(r=>`<option value="${r.id}">${esc(r.name)}</option>`).join(''),pO=db.products.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('');
   return `<div class="card"><h3>إضافة مندوب</h3><div class="row"><label>الاسم<input id="rn"></label><label>الهاتف<input id="rp2"></label><label>ربط بمستخدم<select id="ru"><option value="">بدون ربط</option>${db.profiles.map(u=>`<option value="${u.id}">${esc(u.name||u.email)}</option>`).join('')}</select></label><label>عمولة مبيعات %<input id="rcs" type="number" step="0.01" value="0" style="width:90px"></label><label>عمولة تحصيل %<input id="rcc" type="number" step="0.01" value="0" style="width:90px"></label><label>التارجت الشهري<input id="rt2" type="number" value="0" style="width:110px"></label><button class="b y" onclick="addRep()">إضافة المندوب</button></div><small>بيتفتح للمندوب تلقائيًا مخزن سيارة وحساب عهدة نقدية. لتعديل بياناته استخدم تبويب تعديل البيانات.</small></div>
   <div class="card"><h3>المناديب</h3>${tbl(['المندوب','الهاتف','عهدة نقدية','التارجت','العمولة (مبيعات / تحصيل)','الحالة',''],db.reps.map(r=>[esc(r.name),esc(r.phone),f(b[r.cash]),f(r.target),r.cs+'% / '+r.cc+'%',r.status=='on'?'نشط':'موقوف',`<button class="b" onclick="repSettle(${r.id})">توريد العهدة</button>`]))}</div>
-  <div class="card"><h3>تحميل السيارة أو إرجاع للمخزن الرئيسي</h3><div class="row"><label>المندوب<select id="vr">${rO}</select></label><label>الصنف<select id="vp">${pO}</select></label><label>الكمية<input id="vq" type="number" min="1" style="width:90px"></label><label>العملية<select id="vd2"><option value="out">تحميل من المخزن الرئيسي</option><option value="in">إرجاع للمخزن الرئيسي</option></select></label><button class="b y" onclick="repXfer()">تنفيذ</button></div>
-  ${tbl(['المندوب','مخزون السيارة'],db.reps.map(r=>[esc(r.name),db.products.filter(p=>sq(p,r.wh)>0).map(p=>esc(p.name)+': '+sq(p,r.wh)).join(' | ')||'فاضية']))}</div>
+  <div class="card"><h3>قيمة مخزن كل مندوب</h3>${tbl(['المندوب','عدد الأصناف','القيمة بالتكلفة','القيمة بسعر البيع','الأصناف'],db.reps.map(r=>{const L=db.products.filter(p=>sq(p,r.wh)>0);return[esc(r.name),L.length,f(L.reduce((s,p)=>s+sq(p,r.wh)*p.cost,0)),f(L.reduce((s,p)=>s+sq(p,r.wh)*p.price,0)),L.map(p=>esc(p.name)+': '+sq(p,r.wh)).join(' | ')||'فاضية']}))}<small>القيمة بتتحدث تلقائيًا مع كل بيع أو مرتجع للمندوب. التحميل والمرتجع بيتم من شاشة المخازن بواسطة أمين المخزن.</small></div>
   <div class="card"><h3>عملاء المناديب وخط السير</h3>${tbl(['العميل','المندوب','يوم الزيارة','الحد الائتماني','الرصيد'],db.parties.filter(p=>p.type=='C').map(p=>[esc(p.name),`<select onchange="setCust(${p.id},'rep',this.value)"><option value="">بدون</option>${db.reps.map(r=>`<option value="${r.id}" ${r.id==p.rep?'selected':''}>${esc(r.name)}</option>`).join('')}</select>`,`<select onchange="setCust(${p.id},'day',this.value)"><option value="">غير محدد</option>${DAYS.map((d,i)=>`<option value="${i}" ${p.day===String(i)?'selected':''}>${d}</option>`).join('')}</select>`,`<input type="number" value="${p.limit||0}" onchange="setCust(${p.id},'limit',this.value)" style="width:100px">`,f(pbal(p))]))}</div>
   <div class="card"><h3>الأداء والعمولات</h3><div class="row"><label>الشهر<input type="month" value="${repM}" onchange="repM=this.value;go('reps')"></label></div>
   ${tbl(['المندوب','زيارات','فواتير','المبيعات','التحصيل','التارجت','الإنجاز','العمولة',''],db.reps.map(r=>{const s=repStats(r,repM);return[esc(r.name),s.vis,s.orders,f(s.sales),f(s.col),f(r.target),s.pct+'%',f(s.com),(r.paid||{})[repM]?'تم الاعتماد':`<button class="b y" onclick="repCom(${r.id})">اعتماد العمولة</button>`]}))}
@@ -1067,6 +1110,7 @@ reports(){
 users(){
   return `<div class="card"><h3>المستخدمون والصلاحيات</h3><p><small>كل مستخدم جديد ينشئ حسابه من شاشة الدخول، ثم تحدد صلاحياته من هنا.</small></p>
   ${tbl(['المستخدم',...MU.map(m=>MN[m]),''],db.profiles.map(u=>[esc(u.name||u.email),...MU.map(m=>`<input type="checkbox" data-u="${u.id}" value="${m}" ${u.is_admin||(u.perms||[]).includes(m)?'checked':''} ${u.is_admin?'disabled':''}>`),u.is_admin?'مدير':`<button class="b y" onclick="savePerms('${u.id}')">حفظ</button>`]))}</div>
+  <div class="card"><h3>ربط المستخدمين بالمخازن (أمناء المخازن)</h3><p><small>المستخدم المربوط بمخزن أو أكتر بيشوف المخازن دي بس، وكل عملياته بتتم عليها تلقائيًا. بدون ربط بيشوف كل المخازن.</small></p>${tbl(['المستخدم',...db.wh.map(w=>esc(w.name)),''],db.profiles.filter(u=>!u.is_admin).map(u=>[esc(u.name||u.email),...db.wh.map(w=>`<input type="checkbox" data-w="${u.id}" value="${w.id}" ${(u.perms||[]).includes('wh:'+w.id)?'checked':''}>`),`<button class="b y" onclick="saveWh('${u.id}')">حفظ</button>`]))}</div>
   <div class="card"><div class="row"><label>نسبة ضريبة القيمة المضافة %<input id="vt" type="number" value="${db.vat}"></label><button class="b" onclick="saveVat()">حفظ النسبة</button><button class="b y" onclick="exp()">نسخة احتياطية</button></div></div>`;
 }};
 boot();
