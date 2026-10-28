@@ -62,8 +62,8 @@ const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const f=n=>Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
 const r2=x=>Math.round(x*100)/100,today=()=>new Date().toISOString().slice(0,10);
-const M=['dash','pos','sales','purchases','cash','inventory','setup','hr','journal','reports','users'];
-const MN={dash:'الرئيسية',pos:'نقاط البيع',sales:'المبيعات',purchases:'المشتريات',cash:'الخزينة',inventory:'المخازن',setup:'التهيئة',hr:'الموارد البشرية',journal:'القيود',reports:'التقارير',users:'المستخدمون'};
+const M=['dash','pos','sales','purchases','cash','inventory','setup','hr','journal','reports','edit','users'];
+const MN={dash:'الرئيسية',pos:'نقاط البيع',sales:'المبيعات',purchases:'المشتريات',cash:'الخزينة',inventory:'المخازن',setup:'التهيئة',hr:'الموارد البشرية',edit:'تعديل البيانات',journal:'القيود',reports:'التقارير',users:'المستخدمون'};
 const ACC=[['1000','النقدية','A','cash'],['1010','مقبوضات البطاقات','A','bank'],['1020','المحافظ الإلكترونية','A','wallet'],['1100','العملاء','A',null,null,true],['1400','سلف الموظفين','A'],['1200','المخزون','A',null,null,true],['1300','ضريبة مدخلات','A'],['2000','الموردون','L',null,null,true],['2100','ضريبة مخرجات','L'],['2200','رواتب مستحقة','L'],['2300','تأمينات مستحقة','L'],['3000','رأس المال','E'],['3100','أرصدة افتتاحية','E'],['4000','إيرادات المبيعات','R'],['4100','إيرادات أخرى','R'],['5000','تكلفة البضاعة المباعة','X'],['5100','مصروفات عمومية','X'],['5200','الرواتب والأجور','X'],['5300','إيجار','X'],['5400','كهرباء ومياه واتصالات','X'],['5500','مواصلات وانتقالات','X'],['5600','صيانة ونظافة','X']];
 const PA={cash:'1000',card:'1010',wallet:'1020'};
 let lastInv=0,hrt='emp',attD=new Date().toISOString().slice(0,10),payM=new Date().toISOString().slice(0,7);
@@ -71,7 +71,7 @@ const TY={A:'أصل',L:'التزام',E:'حقوق ملكية',R:'إيراد',X:'
 const npf=b=>-ACC.filter(a=>'RX'.includes(a[2])).reduce((s,a)=>s+b[a[0]],0);
 const KEY='acc_db_v1';
 let db,me,cur='dash',cart=[],pcart=[],posc=[];
-const can=m=>me&&(me.is_admin||(me.perms||[]).includes(m));
+const can=m=>me&&(m=='edit'?!!me.is_admin:(me.is_admin||(me.perms||[]).includes(m)));
 const pn=id=>(db.products.find(p=>p.id==id)||{}).name||'؟';
 const tbl=(h,r)=>`<table><tr>${h.map(x=>`<th>${x}</th>`).join('')}</tr>${r.map(x=>`<tr>${x.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}</table>`;
 
@@ -532,6 +532,110 @@ function expKard(){
   const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.table_to_sheet(t),'كارت صنف');xl(wb,'كارت-صنف');
 }
 
+/* ====== تعديل البيانات (للمدير) ====== */
+let edT='acc';
+const MU=M.filter(m=>m!='edit'),SYS=['1000','1010','1020','1100','1200','1300','1400','2000','2100','2200','2300','3000','3100','4000','5000','5100','5200'];
+const EF={
+ acc:[['name','الاسم','t'],['type','النوع','s',TY],['kind','نوع الخزينة','s',{'':'ليس خزينة',cash:'خزنة',bank:'بنك',wallet:'محفظة'}],['parent','الحساب الأب','par'],['ctl','حساب مراقبة','b'],['hdr','حساب تجميعي','b']],
+ cc:[['name','الاسم','t']],
+ emp:[['name','الاسم','t'],['job','الوظيفة','t'],['dept','القسم','t'],['hire','تاريخ التعيين','d'],['phone','الهاتف','t'],['natid','الرقم القومي','t'],['basic','الراتب الأساسي','n'],['allow','البدلات','n'],['insp','نسبة التأمينات %','n'],['status','الحالة','s',ST]],
+ prod:[['name','الاسم','t'],['code','الباركود','t'],['price','سعر البيع','n'],['grp','المجموعة','grp']],
+ party:[['name','الاسم','t'],['phone','الهاتف','t']],
+ wh:[['name','الاسم','t']],grp:[['name','الاسم','t']],loc:[['name','الاسم','t']]
+};
+function edObj(t,k){
+  if(t=='acc'){const a=ACC.find(x=>x[0]==k);return{name:a[1],type:a[2],kind:a[3]||'',parent:a[4]||'',ctl:!!a[5],hdr:!!a[6]}}
+  if(t=='cc')return db.cc.find(x=>x.code==k);
+  return{emp:db.emp,prod:db.products,party:db.parties,wh:db.wh,grp:db.grp,loc:db.loc}[t].find(x=>String(x.id)==k);
+}
+function edList(){
+  const E=k=>`<button class="b" onclick="ed('${edT}','${k}')">تعديل</button>`;
+  const L={
+   acc:()=>[['الكود','الاسم','النوع','الخصائص'],ACC.map(a=>[a[0],esc(a[1]),TY[a[2]],[a[6]?'تجميعي':'',a[5]?'مراقبة':'',a[3]?'خزينة':''].filter(Boolean).join('، '),E(a[0])])],
+   cc:()=>[['الكود','المركز'],db.cc.map(c=>[c.code,esc(c.name),E(c.code)])],
+   emp:()=>[['الاسم','الوظيفة','الأساسي','الحالة'],db.emp.map(e=>[esc(e.name),esc(e.job),f(e.basic),ST[e.status],E(e.id)])],
+   prod:()=>[['الصنف','الباركود','المجموعة','سعر البيع'],db.products.map(p=>[esc(p.name),esc(p.code||''),esc(gN(p.grp)),f(p.price),E(p.id)])],
+   party:()=>[['الاسم','النوع','الهاتف'],db.parties.map(p=>[esc(p.name),p.type=='C'?'عميل':'مورد',esc(p.phone),E(p.id)])],
+   wh:()=>[['المخزن'],db.wh.map(w=>[esc(w.name),E(w.id)])],
+   grp:()=>[['المجموعة'],db.grp.map(g=>[esc(g.name),E(g.id)])],
+   loc:()=>[['المكان','المخزن'],db.loc.map(l=>[esc(l.name),esc(whN(l.wh)),E(l.id)])],
+   je:()=>[['#','التاريخ','البيان','المرجع','المبلغ'],db.je.slice().reverse().slice(0,60).map(j=>[j.id,j.d,esc(j.desc),j.ref||'',f(j.l.reduce((s,l)=>s+l[1],0)),E(j.id)])]
+  }[edT]();
+  return tbl([...L[0],''],L[1]);
+}
+function ed(t,k){
+  if(t=='je')return edJe(k);
+  const o=edObj(t,k);
+  const inp=f=>{
+    const v=o[f[0]]??'',id='ef_'+f[0];let h;
+    if(f[2]=='s')h=`<select id="${id}">${Object.keys(f[3]).map(x=>`<option value="${x}" ${x==v?'selected':''}>${f[3][x]}</option>`).join('')}</select>`;
+    else if(f[2]=='par')h=`<select id="${id}"><option value="">بدون أب</option>${ACC.filter(a=>a[6]&&a[0]!=k).map(a=>`<option value="${a[0]}" ${a[0]==v?'selected':''}>${esc(a[1])} (${TY[a[2]]})</option>`).join('')}</select>`;
+    else if(f[2]=='grp')h=`<select id="${id}"><option value="">بدون مجموعة</option>${db.grp.map(g=>`<option value="${g.id}" ${g.id==v?'selected':''}>${esc(g.name)}</option>`).join('')}</select>`;
+    else if(f[2]=='b')return `<label style="flex-direction:row;align-items:center;gap:4px"><input type="checkbox" id="${id}" ${v?'checked':''}>${f[1]}</label>`;
+    else h=`<input id="${id}" type="${f[2]=='n'?'number':f[2]=='d'?'date':'text'}" ${f[2]=='n'?'step="0.01"':''} value="${esc(v)}">`;
+    return `<label>${f[1]}${h}</label>`;
+  };
+  $('#edbox').innerHTML=`<div class="card"><h3>تعديل: ${esc(o.name||k)}</h3><div class="row">${EF[t].map(inp).join('')}</div><button class="b y" onclick="edSave('${t}','${k}')">حفظ التعديل</button> <button class="b" onclick="$('#edbox').innerHTML=''">إلغاء</button></div>`;
+  $('#edbox').scrollIntoView();
+}
+function edSave(t,k){
+  const o=edObj(t,k),v={};
+  for(const f of EF[t]){const e=$('#ef_'+f[0]);v[f[0]]=f[2]=='b'?e.checked:f[2]=='n'?(+e.value||0):e.value.trim()}
+  if(!v.name)return alert('الاسم مطلوب');
+  if(t=='acc'){
+    const a=ACC.find(x=>x[0]==k),used=db.je.some(j=>j.l.some(l=>l[0]==k)),par=ACC.find(x=>x[0]==v.parent);
+    if(SYS.includes(k)&&(v.type!=a[2]||v.hdr))return alert('حساب أساسي في النظام: لا يمكن تغيير نوعه أو جعله تجميعيًا');
+    if(v.hdr&&!a[6]&&used)return alert('الحساب عليه حركات ولا يمكن تحويله إلى تجميعي');
+    if(kids(k).some(c=>c[2]!=v.type))return alert('فروع هذا الحساب من نوع مختلف');
+    if(v.parent&&(!par||!par[6]||par[2]!=v.type))return alert('الأب لازم يكون حساب تجميعي من نفس النوع');
+    for(let x=par;x;x=ACC.find(y=>y[0]==x[4]))if(x[0]==k)return alert('لا يمكن نقل الحساب تحت أحد فروعه');
+    if(v.hdr&&v.ctl)return alert('الحساب التجميعي لا يكون حساب مراقبة');
+    a[1]=v.name;a[2]=v.type;a[3]=v.kind||null;a[4]=v.parent||null;a[5]=v.ctl;a[6]=v.hdr;
+    upAcc({code:k,name:v.name,type:v.type,kind:a[3],parent:a[4],ctl:a[5],hdr:a[6]});
+  }else if(t=='cc'){o.name=v.name;upAcc({code:k,name:v.name,type:'CC'})}
+  else if(t=='prod'){
+    if(v.code&&db.products.some(p=>p.code==v.code&&p!=o))return alert('الباركود مستخدم لصنف آخر');
+    Object.assign(o,{name:v.name,code:v.code||null,price:v.price,grp:v.grp||null});save();
+  }else if(t=='wh'){
+    if(o.id=='w0')return alert('المخزن الرئيسي الافتراضي لا يُعاد تسميته');
+    o.name=v.name;put('inv',{id:+o.id,k:'wh',name:v.name});
+  }else{Object.assign(o,v);put({emp:'employees',party:'parties',grp:'inv',loc:'inv'}[t],o)}
+  alert('تم حفظ التعديل');go('edit');
+}
+function edJe(id){
+  const j=db.je.find(x=>x.id==id),ao=v=>'<option value="">—</option>'+ACC.filter(a=>!isHdr(a)).map(a=>`<option value="${a[0]}" ${a[0]==v?'selected':''}>${a[0]} ${esc(a[1])}</option>`).join('');
+  $('#edbox').innerHTML=`<div class="card"><h3>تعديل القيد ${j.id}${j.ref?' (مرتبط بالمستند '+esc(j.ref)+')':''}</h3>
+  <div class="row"><label>التاريخ<input id="ej_d" type="date" value="${j.d}"></label><label>البيان<input id="ej_x" value="${esc(j.desc)}" style="width:320px"></label></div>
+  <table><tr><th>الحساب</th><th>مدين</th><th>دائن</th><th>مركز التكلفة</th></tr>${[...j.l,[],[]].map(l=>`<tr><td><select class="je_a">${ao(l[0])}</select><input type="hidden" class="je_p" value="${l[3]||''}"></td><td><input class="je_d" type="number" step="0.01" value="${l[1]||''}" style="width:110px"></td><td><input class="je_c" type="number" step="0.01" value="${l[2]||''}" style="width:110px"></td><td><select class="je_k">${ccO().replace('value="'+(l[4]||'')+'"','value="'+(l[4]||'')+'" selected')}</select></td></tr>`).join('')}</table><br>
+  <button class="b y" onclick="edJeSave(${id})">حفظ القيد</button> <button class="b d" onclick="revJe(${id})">عمل قيد عكسي</button> <button class="b" onclick="$('#edbox').innerHTML=''">إلغاء</button>
+  <p><small>التعديل بيسجل اسمك ووقت التعديل على القيد. لو القيد مرتبط بفاتورة أو سند، عدّل الفاتورة بمرتجع وليس من هنا.</small></p></div>`;
+  $('#edbox').scrollIntoView();
+}
+function edJeSave(id){
+  const j=db.je.find(x=>x.id==id),A=document.querySelectorAll('.je_a'),D=document.querySelectorAll('.je_d'),C=document.querySelectorAll('.je_c'),P=document.querySelectorAll('.je_p'),K=document.querySelectorAll('.je_k'),L=[];
+  try{
+    A.forEach((el,i)=>{
+      if(!el.value)return;
+      const d=r2(+D[i].value||0),c=r2(+C[i].value||0);
+      if((d>0)==(c>0))throw Error('كل سطر لازم يكون مدين أو دائن (واحد منهم فقط)');
+      const a=ACC.find(x=>x[0]==el.value);
+      if(isHdr(a))throw Error('لا يمكن الترحيل على حساب تجميعي: '+a[1]);
+      L.push([el.value,d,c,['1100','2000'].includes(el.value)&&P[i].value?+P[i].value:undefined,K[i].value||undefined]);
+    });
+    if(L.length<2)throw Error('القيد لازم يكون فيه سطرين على الأقل');
+    if(r2(L.reduce((s,l)=>s+l[1],0))!=r2(L.reduce((s,l)=>s+l[2],0)))throw Error('القيد غير متوازن');
+    if(j.ref&&/^(S|P|SR|PR)\d/.test(j.ref)&&!confirm('القيد مرتبط بفاتورة. التعديل هنا مش هيغيّر الفاتورة نفسها. متأكد؟'))return;
+    j.l=L;j.d=$('#ej_d').value||j.d;j.desc=$('#ej_x').value.trim()||j.desc;j.edited={by:me.name||me.email,at:new Date().toISOString().slice(0,16).replace('T',' ')};
+    sb.from('journal_entries').upsert({id:j.id,data:j}).then(r=>{if(r.error)alert(r.error.message)});
+    alert('تم تعديل القيد');go('edit');
+  }catch(e){alert(e.message)}
+}
+function revJe(id){
+  const j=db.je.find(x=>x.id==id);
+  if(!confirm('إنشاء قيد عكسي لهذا القيد؟'))return;
+  try{post(today(),'عكس القيد '+j.id+': '+j.desc,j.l.map(l=>[l[0],l[2],l[1],l[3],l[4]]),'REV'+j.id);save();go('edit')}catch(e){alert(e.message)}
+}
+
 /* ====== شجرة الحسابات ====== */
 const kids=c=>ACC.filter(a=>a[4]==c),isHdr=a=>!!a[6]||kids(a[0]).length>0,postable=a=>!!a&&!a[5]&&!isHdr(a);
 const rb=(c,b)=>(b[c]||0)+kids(c).reduce((s,k)=>s+rb(k[0],b),0);
@@ -832,6 +936,10 @@ cash(){
   <div class="card"><h3>إضافة بند إيراد أو مصروف</h3><div class="row"><label>النوع<select id="ck"><option value="R">إيراد</option><option value="X">مصروف</option></select></label><label>اسم البند<input id="cm"></label><button class="b y" onclick="addCat()">إضافة</button></div></div>
   <div class="card"><h3>آخر السندات</h3>${tbl(['الرقم','التاريخ','البيان','المبلغ',''],db.je.filter(j=>/^(RV|PV|TR)/.test(j.ref)).slice().reverse().slice(0,30).map(j=>[j.ref,j.d,esc(j.desc),f(j.l.find(l=>l[1]>0)[1]),`<button class="b" onclick="vp(${j.id})">طباعة</button>`]))}</div>`;
 },
+edit(){
+  const T={acc:'الحسابات',cc:'مراكز التكلفة',emp:'الموظفون',prod:'الأصناف',party:'العملاء والموردون',wh:'المخازن',grp:'مجموعات الأصناف',loc:'أماكن التخزين',je:'القيود اليومية'};
+  return `<div class="card"><h3>تعديل البيانات (للمدير فقط)</h3><div class="row"><label>نوع البيانات<select onchange="edT=this.value;go('edit')">${Object.keys(T).map(k=>`<option value="${k}" ${k==edT?'selected':''}>${T[k]}</option>`).join('')}</select></label></div></div><div id="edbox"></div><div class="card">${edList()}</div>`;
+},
 journal(){
   const o=ACC.filter(postable).map(a=>`<option value="${a[0]}">${a[0]} ${a[1]}</option>`).join('');
   return `<div class="card"><h3>قيد يومية يدوي</h3><div class="row"><label>مدين<select id="ja">${o}</select></label><label>دائن<select id="jc">${o}</select></label><label>المبلغ<input id="jv" type="number" step="0.01"></label><label>التاريخ<input id="jd" type="date" value="${today()}"></label><label>البيان<input id="jx"></label><label>مركز التكلفة<select id="jcc">${ccO()}</select></label><button class="b y" onclick="jm()">ترحيل القيد</button></div></div>
@@ -845,7 +953,7 @@ reports(){
 },
 users(){
   return `<div class="card"><h3>المستخدمون والصلاحيات</h3><p><small>كل مستخدم جديد ينشئ حسابه من شاشة الدخول، ثم تحدد صلاحياته من هنا.</small></p>
-  ${tbl(['المستخدم',...M.map(m=>MN[m]),''],db.profiles.map(u=>[esc(u.name||u.email),...M.map(m=>`<input type="checkbox" data-u="${u.id}" value="${m}" ${u.is_admin||(u.perms||[]).includes(m)?'checked':''} ${u.is_admin?'disabled':''}>`),u.is_admin?'مدير':`<button class="b y" onclick="savePerms('${u.id}')">حفظ</button>`]))}</div>
+  ${tbl(['المستخدم',...MU.map(m=>MN[m]),''],db.profiles.map(u=>[esc(u.name||u.email),...MU.map(m=>`<input type="checkbox" data-u="${u.id}" value="${m}" ${u.is_admin||(u.perms||[]).includes(m)?'checked':''} ${u.is_admin?'disabled':''}>`),u.is_admin?'مدير':`<button class="b y" onclick="savePerms('${u.id}')">حفظ</button>`]))}</div>
   <div class="card"><div class="row"><label>نسبة ضريبة القيمة المضافة %<input id="vt" type="number" value="${db.vat}"></label><button class="b" onclick="saveVat()">حفظ النسبة</button><button class="b y" onclick="exp()">نسخة احتياطية</button></div></div>`;
 }};
 boot();
