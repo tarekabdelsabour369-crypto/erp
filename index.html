@@ -81,7 +81,7 @@ let synced={inv:0,je:0};
 async function save(){
   try{
     const jobs=[];
-    if(db.products.length)jobs.push(sb.from('products').upsert(db.products));
+    if(db.products.length)jobs.push(sb.from('products').upsert(db.products.map(({st,grp,lc,...p})=>({...p,ext:{st,grp,lc}}))));
     const ni=db.inv.slice(synced.inv).map(x=>({id:x.id,data:x})),nj=db.je.slice(synced.je).map(x=>({id:x.id,data:x}));
     if(ni.length)jobs.push(sb.from('invoices').upsert(ni));
     if(nj.length)jobs.push(sb.from('journal_entries').upsert(nj));
@@ -104,8 +104,10 @@ async function enter(u){
   if(error||!p)return $('#le').textContent='تعذر تحميل الحساب. تأكد من تشغيل ملف setup.sql';
   me=p;
   const q=t=>sb.from(t).select('*');
-  const[a,b,c,d,e,pa,ac,shf,em,hh]=await Promise.all([q('products'),q('invoices').order('id'),q('journal_entries').order('id'),q('settings'),q('profiles'),q('parties'),q('accounts'),q('shifts'),q('employees'),q('hr')]);
-  db={products:(a.data||[]).map(x=>({...x,price:+x.price,q:+x.q,cost:+x.cost})),inv:(b.data||[]).map(x=>x.data),je:(c.data||[]).map(x=>x.data),vat:14,profiles:e.data||[],parties:(pa.data||[]).map(x=>x.data),shifts:(shf.data||[]).map(x=>x.data),emp:(em.data||[]).map(x=>x.data),hr:(hh.data||[]).map(x=>x.data)};
+  const[a,b,c,d,e,pa,ac,shf,em,hh,iv]=await Promise.all([q('products'),q('invoices').order('id'),q('journal_entries').order('id'),q('settings'),q('profiles'),q('parties'),q('accounts'),q('shifts'),q('employees'),q('hr'),q('inv')]);
+  db={products:(a.data||[]).map(({ext,...x})=>({...x,...(ext||{}),price:+x.price,q:+x.q,cost:+x.cost})),inv:(b.data||[]).map(x=>x.data),je:(c.data||[]).map(x=>x.data),vat:14,profiles:e.data||[],parties:(pa.data||[]).map(x=>x.data),shifts:(shf.data||[]).map(x=>x.data),emp:(em.data||[]).map(x=>x.data),hr:(hh.data||[]).map(x=>x.data)};
+  const IV=(iv.data||[]).map(x=>x.data);
+  Object.assign(db,{wh:[{id:'w0',name:'المخزن الرئيسي'},...IV.filter(x=>x.k=='wh').map(x=>({id:String(x.id),name:x.name}))],grp:IV.filter(x=>x.k=='grp'),loc:IV.filter(x=>x.k=='loc'),mvs:IV.filter(x=>x.k=='mv')});
   ACC.push(...(ac.data||[]).map(x=>[x.code,x.name,x.type,x.kind||null]));
   const v=(d.data||[]).find(x=>x.key=='vat');if(v)db.vat=+v.value;
   synced={inv:db.inv.length,je:db.je.length};
@@ -138,25 +140,25 @@ function bal(to,from){
   db.je.forEach(j=>{if((!to||j.d<=to)&&(!from||j.d>=from))j.l.forEach(l=>m[l[0]]=r2(m[l[0]]+l[1]-l[2]))});
   return m;
 }
-function sale(party,pay,items,d,pid,disc,pays){
+function sale(party,pay,items,d,pid,disc,pays,wh){wh=wh||'w0';
   if(pay=='credit'&&!pid)throw Error('اختر عميلاً للبيع الآجل');
   const need={};items.forEach(i=>need[i.id]=(need[i.id]||0)+i.q);
-  for(const id in need){const p=db.products.find(x=>x.id==id);if(!p||p.q<need[id])throw Error('الكمية غير كافية: '+pn(id))}
+  for(const id in need){const p=db.products.find(x=>x.id==id);if(!p||sq(p,wh)<need[id])throw Error('الكمية غير كافية: '+pn(id))}
   let net=0,cogs=0;
-  items.forEach(i=>{const p=db.products.find(x=>x.id==i.id);net+=i.q*i.pr;cogs+=i.q*p.cost;p.q-=i.q});
+  items.forEach(i=>{const p=db.products.find(x=>x.id==i.id);net+=i.q*i.pr;cogs+=i.q*p.cost;p.q-=i.q;mvq(p,wh,-i.q)});
   net=r2(net-(disc||0));cogs=r2(cogs);
   const tax=r2(net*db.vat/100),tot=r2(net+tax),id=nid();
-  db.inv.push({id,t:'S',d,party,pid,pay,l:items,net,tax,tot,disc:disc||0,pays});
+  db.inv.push({id,t:'S',d,party,pid,pay,l:items,net,tax,tot,disc:disc||0,pays,wh});
   post(d,'فاتورة مبيعات #'+id,[...(pays?pays.map(x=>[PA[x.m],x.a,0]):[[pay=='credit'?'1100':(pay=='cash'?'1000':pay),tot,0,pid]]),['4000',0,net],['2100',0,tax],['5000',cogs,0],['1200',0,cogs]],'S'+id);
   return id;
 }
-function purchase(party,pay,items,d,pid){
+function purchase(party,pay,items,d,pid,wh){wh=wh||'w0';
   if(pay=='credit'&&!pid)throw Error('اختر مورداً للشراء الآجل');
   let net=0;
-  items.forEach(i=>{const p=db.products.find(x=>x.id==i.id);const v=i.q*i.pr;p.cost=r2((p.q*p.cost+v)/(p.q+i.q));p.q+=i.q;net+=v});
+  items.forEach(i=>{const p=db.products.find(x=>x.id==i.id);const v=i.q*i.pr;p.cost=r2((p.q*p.cost+v)/(p.q+i.q));p.q+=i.q;mvq(p,wh,i.q);net+=v});
   net=r2(net);
   const tax=r2(net*db.vat/100),tot=r2(net+tax),id=nid();
-  db.inv.push({id,t:'P',d,party,pid,pay,l:items,net,tax,tot});
+  db.inv.push({id,t:'P',d,party,pid,pay,l:items,net,tax,tot,wh});
   post(d,'فاتورة مشتريات #'+id,[['1200',net,0],['1300',tax,0],[pay=='credit'?'2000':(pay=='cash'?'1000':pay),0,tot,pid]],'P'+id);
   return id;
 }
@@ -182,7 +184,7 @@ function saveInv(t){
   if(!L.length)return alert('الفاتورة فارغة');
   try{
     const pid=+$('#pt').value||0,pr=db.parties.find(x=>x.id==pid),a=[pr?pr.name:(t=='S'?'عميل نقدي':'مورد عام'),$('#py').value,L.map(l=>({...l})),$('#dt').value||today(),pid];
-    const id=t=='S'?sale(...a):purchase(...a);
+    const w=$('#iw').value,id=t=='S'?sale(...a,0,null,w):purchase(...a,w);
     save();L.length=0;go(cur);alert('تم حفظ الفاتورة رقم '+id);
   }catch(e){alert(e.message)}
 }
@@ -190,7 +192,7 @@ const list=t=>`<div class="card"><h3>آخر الفواتير</h3>${tbl(['#','ا�
 function invUI(t){
   const S=t=='S';
   return `<div class="card"><h3>${S?'فاتورة مبيعات':'فاتورة مشتريات'}</h3>
-  <div class="row"><label>${S?'العميل':'المورد'}<select id="pt"><option value="">${S?'عميل نقدي':'مورد عام'}</option>${db.parties.filter(p=>p.type==(S?'C':'S')).map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select></label><label>التاريخ<input id="dt" type="date" value="${today()}"></label>
+  <div class="row"><label>${S?'العميل':'المورد'}<select id="pt"><option value="">${S?'عميل نقدي':'مورد عام'}</option>${db.parties.filter(p=>p.type==(S?'C':'S')).map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select></label><label>التاريخ<input id="dt" type="date" value="${today()}"></label><label>المخزن<select id="iw">${whOpts()}</select></label>
   <label>الدفع<select id="py">${trs().map(a=>`<option value="${a[0]}">${esc(a[1])}</option>`).join('')}<option value="credit">آجل</option></select></label></div>
   <div class="row"><label>الصنف<select id="ip" onchange="fillPr('${t}')">${db.products.map(p=>`<option value="${p.id}">${esc(p.name)} (${p.q})</option>`).join('')}</select></label>
   <label>الكمية<input id="iq" type="number" min="1" value="1" style="width:90px"></label>
@@ -204,7 +206,7 @@ const curSh=()=>db.shifts.find(x=>!x.close&&x.uid==me.id);
 const tm=x=>String(x).slice(0,16).replace('T',' ');
 function pg(){
   const q=($('#ps').value||'').trim();
-  $('#pg').innerHTML=db.products.filter(p=>p.name.includes(q)||(p.code||'').includes(q)).map(p=>`<button onclick="padd(${p.id})"><b>${esc(p.name)}</b><br>${f(p.price)}<br><small>متاح: ${p.q}</small></button>`).join('')||'لا توجد أصناف. أضفها من شاشة المخازن.';
+  $('#pg').innerHTML=db.products.filter(p=>p.name.includes(q)||(p.code||'').includes(q)).map(p=>`<button onclick="padd(${p.id})"><b>${esc(p.name)}</b><br>${f(p.price)}<br><small>متاح: ${sq(p,posW())}</small></button>`).join('')||'لا توجد أصناف. أضفها من شاشة المخازن.';
 }
 function scan(){
   const v=$('#ps').value.trim(),p=db.products.find(x=>x.code&&x.code==v);
@@ -212,13 +214,13 @@ function scan(){
 }
 function padd(id){
   const p=db.products.find(x=>x.id==id);let l=posc.find(x=>x.id==id);
-  if((l?l.q:0)+1>p.q)return alert('الكمية المتاحة غير كافية');
+  if((l?l.q:0)+1>sq(p,posW()))return alert('الكمية المتاحة غير كافية');
   if(l)l.q++;else posc.push({id,q:1,pr:p.price,dp:0});
   posr();
 }
 function pq2(i,d){
   const l=posc[i],p=db.products.find(x=>x.id==l.id);
-  if(l.q+d>p.q)return alert('الكمية المتاحة غير كافية');
+  if(l.q+d>sq(p,posW()))return alert('الكمية المتاحة غير كافية');
   l.q+=d;if(l.q<=0)posc.splice(i,1);posr();
 }
 function pdp(i,v){posc[i].dp=Math.min(100,Math.max(0,+v||0));posr()}
@@ -241,7 +243,7 @@ function payPos(){
   if(rc<due)return alert('النقدية المستلمة أقل من المطلوب');
   try{
     const pays=[{m:'cash',a:due},{m:'card',a:cd},{m:'wallet',a:wl}].filter(x=>x.a>0);
-    const id=sale('عميل نقدي','cash',posItems(),today(),0,T.dv,pays),o=db.inv.find(x=>x.id==id);
+    const id=sale('عميل نقدي','cash',posItems(),today(),0,T.dv,pays,posW()),o=db.inv.find(x=>x.id==id);
     o.sh=sh.id;o.change=r2(rc-due);
     const t=sh.t;t.cash=r2(t.cash+due);t.card=r2(t.card+cd);t.wallet=r2(t.wallet+wl);t.n++;t.disc=r2(t.disc+T.gross-T.net);
     sb.from('shifts').upsert({id:sh.id,data:sh}).then(r=>{if(r.error)alert(r.error.message)});
@@ -290,7 +292,7 @@ function closeSh(){
 function addP(){
   const name=$('#pn').value.trim(),price=+$('#pp').value,q=+$('#pq').value,cost=+$('#pc').value;
   if(!name||price<0||q<0||cost<0)return alert('أدخل اسم الصنف وقيماً صحيحة');
-  db.products.push({id:nid(),name,price,q,cost,code:$('#pb').value.trim()||null});
+  const w=$('#pwh').value,np={id:nid(),name,price,q,cost,code:$('#pb').value.trim()||null,grp:$('#pgp').value||null,st:{[w]:q}};db.products.push(np);if(q>0){const r={id:nid(),k:'mv',type:'open',pid:np.id,wh:w,q,d:today()};db.mvs.push(r);put('inv',r)}
   if(q>0&&cost>0){const v=r2(q*cost);post(today(),'رصيد افتتاحي: '+name,[['1200',v,0],['3000',0,v]])}
   save();go('inventory');
 }
@@ -334,14 +336,14 @@ function doRet(id){
     const net=r2(items.reduce((s,i)=>s+i.q*i.pr,0)*(o.disc?o.net/(o.net+o.disc):1)),tax=o.net?r2(net*o.tax/o.net):0,tot=r2(net+tax),d=today(),acc=o.pay=='credit'?(S?'1100':'2000'):(o.pay=='cash'?'1000':o.pay);
     if(S){
       const j=db.je.find(x=>x.ref=='S'+id),tq=o.l.reduce((s,i)=>s+i.q,0),uc=j&&tq?j.l.find(l=>l[0]=='5000')[1]/tq:0,cg=r2(items.reduce((s,i)=>s+i.q,0)*uc);
-      items.forEach(i=>{const p=db.products.find(x=>x.id==i.id);if(p){p.cost=r2((p.q*p.cost+i.q*uc)/(p.q+i.q));p.q+=i.q}});
+      items.forEach(i=>{const p=db.products.find(x=>x.id==i.id);if(p){p.cost=r2((p.q*p.cost+i.q*uc)/(p.q+i.q));p.q+=i.q;mvq(p,o.wh||'w0',i.q)}});
       post(d,'مرتجع مبيعات للفاتورة '+id,[['4000',net,0],['2100',tax,0],[acc,0,tot,o.pid],['1200',cg,0],['5000',0,cg]],'SR'+id);
     }else{
-      items.forEach(i=>{const p=db.products.find(x=>x.id==i.id);if(!p||p.q<i.q)throw Error('الكمية غير كافية للإرجاع: '+pn(i.id))});
-      items.forEach(i=>{db.products.find(x=>x.id==i.id).q-=i.q});
+      items.forEach(i=>{const p=db.products.find(x=>x.id==i.id);if(!p||sq(p,o.wh||'w0')<i.q)throw Error('الكمية غير كافية للإرجاع: '+pn(i.id))});
+      items.forEach(i=>{const p=db.products.find(x=>x.id==i.id);p.q-=i.q;mvq(p,o.wh||'w0',-i.q)});
       post(d,'مرتجع مشتريات للفاتورة '+id,[[acc,tot,0,o.pid],['1200',0,net],['1300',0,tax]],'PR'+id);
     }
-    db.inv.push({id:nid(),t:S?'SR':'PR',d,party:o.party,pid:o.pid,pay:o.pay,l:items,net,tax,tot,ref:id});
+    db.inv.push({id:nid(),t:S?'SR':'PR',d,party:o.party,pid:o.pid,pay:o.pay,wh:o.wh,l:items,net,tax,tot,ref:id});
     save();go(cur);alert('تم تسجيل فاتورة المرتجع');
   }catch(e){alert(e.message)}
 }
@@ -458,6 +460,63 @@ pay(){const m=payM,run=db.hr.find(x=>x.k=='run'&&x.m==m),rows=run?run.rows:db.em
 return `<div class="card"><h3>كشف الرواتب</h3><div class="row np"><label>الشهر<input type="month" value="${m}" onchange="payM=this.value;go('hr')"></label>${run?(run.paid?'<b>تم صرف الرواتب</b>':`<button class="b y" onclick="payRun(${run.id})">صرف الرواتب نقدًا</button>`):'<button class="b y" onclick="runPay()">اعتماد الكشف وترحيل القيد</button>'}<button class="b" onclick="print()">طباعة الكشف</button></div>
 ${tbl(['الموظف','الأساسي','البدلات','مكافآت','غياب','تأخير','بدون أجر','جزاءات','تأمينات','سلف','الصافي',''],rows.map(r=>[esc(r.name),f(r.basic),f(r.allow),f(r.bonus),f(r.abd),f(r.ltd),f(r.upd),f(r.pen),f(r.ins),f(r.loan),`<b>${f(r.net)}</b>`,`<button class="b np" onclick="slip(${r.id},'${m}')">إيصال</button>`]))}</div>`}
 };
+
+/* ====== المخازن المتعددة وكارت الصنف ====== */
+let invG='';
+const sq=(p,w)=>(p.st||{w0:p.q})[w]||0,posW=()=>($('#pw')&&$('#pw').value)||'w0';
+function mvq(p,w,q){if(!p.st)p.st={w0:p.q-q};p.st[w]=(p.st[w]||0)+q}
+const whN=id=>(db.wh.find(w=>w.id==id)||{}).name||'؟',gN=id=>(db.grp.find(g=>g.id==id)||{}).name||'',lN=id=>(db.loc.find(l=>l.id==id)||{}).name||'';
+const whOpts=()=>db.wh.map(w=>`<option value="${w.id}">${esc(w.name)}</option>`).join('');
+const whQ=p=>db.wh.map(w=>`${esc(w.name)}: ${sq(p,w.id)}${p.lc&&p.lc[w.id]?' ('+esc(lN(p.lc[w.id]))+')':''}`).join(' | ');
+function addWh(){const n=$('#wn').value.trim();if(!n)return alert('أدخل اسم المخزن');const r={id:nid(),k:'wh',name:n};put('inv',r);db.wh.push({id:String(r.id),name:n});go('inventory')}
+function addGrp(){const n=$('#gn').value.trim();if(!n)return alert('أدخل اسم المجموعة');const r={id:nid(),k:'grp',name:n};put('inv',r);db.grp.push(r);go('inventory')}
+function addLoc(){const n=$('#ln2').value.trim();if(!n)return alert('أدخل اسم المكان');const r={id:nid(),k:'loc',wh:$('#lw').value,name:n};put('inv',r);db.loc.push(r);go('inventory')}
+function setLoc(){
+  const p=db.products.find(x=>x.id==+$('#sp').value),l=db.loc.find(x=>x.id==+$('#sl').value);
+  if(!p||!l)return alert('اختر الصنف والمكان');
+  p.lc=p.lc||{};p.lc[l.wh]=l.id;save();go('inventory');
+}
+function trfStock(){
+  const p=db.products.find(x=>x.id==+$('#xp').value),a=$('#xf').value,b=$('#xt').value,q=+$('#xq').value;
+  if(!p||a==b||!(q>0))return alert('اختر الصنف ومخزنين مختلفين وكمية صحيحة');
+  if(sq(p,a)<q)return alert('الكمية في المخزن المصدر غير كافية');
+  mvq(p,a,0);p.st[a]-=q;p.st[b]=(p.st[b]||0)+q;
+  const r={id:nid(),k:'mv',type:'trf',pid:p.id,from:a,to:b,q,d:today()};db.mvs.push(r);put('inv',r);save();go('inventory');
+}
+function adjStock(){
+  const p=db.products.find(x=>x.id==+$('#ap').value),w=$('#aw').value,c=$('#ac2').value;
+  if(!p||c===''||+c<0)return alert('اختر الصنف وأدخل الكمية الفعلية بعد الجرد');
+  const df=r2(+c-sq(p,w));
+  if(!df)return alert('لا يوجد فرق بين الجرد والرصيد');
+  try{
+    const v=r2(Math.abs(df)*p.cost);
+    if(v>0)post(today(),'تسوية جرد: '+p.name,df<0?[['5100',v,0],['1200',0,v]]:[['1200',v,0],['5100',0,v]]);
+    p.q=r2(p.q+df);mvq(p,w,df);
+    const r={id:nid(),k:'mv',type:'adj',pid:p.id,wh:w,q:df,d:today()};db.mvs.push(r);put('inv',r);save();go('inventory');
+  }catch(e){alert(e.message)}
+}
+function mvOf(p,w){
+  const L=[],W=x=>x||'w0',N={S:'مبيعات',P:'مشتريات',SR:'مرتجع مبيعات',PR:'مرتجع مشتريات'},G={S:-1,P:1,SR:1,PR:-1};
+  db.inv.forEach(i=>i.l.forEach(l=>{if(l.id==p.id&&G[i.t]&&(!w||W(i.wh)==w))L.push({d:i.d,id:i.id,t:N[i.t],w:W(i.wh),q:G[i.t]*l.q})}));
+  db.mvs.filter(m=>m.pid==p.id).forEach(m=>{
+    if(m.type=='trf'){if(!w||w==m.from)L.push({d:m.d,id:m.id,t:'تحويل صادر',w:m.from,q:-m.q});if(!w||w==m.to)L.push({d:m.d,id:m.id,t:'تحويل وارد',w:m.to,q:m.q})}
+    else if(!w||w==m.wh)L.push({d:m.d,id:m.id,t:m.type=='open'?'رصيد افتتاحي':'تسوية جرد',w:m.wh,q:m.q});
+  });
+  return L.sort((a,b)=>a.d<b.d?-1:a.d>b.d?1:a.id-b.id);
+}
+function cardUI(){
+  const p=db.products.find(x=>x.id==+$('#kp').value),w=$('#kw').value;
+  if(!p)return alert('لا توجد أصناف');
+  const L=mvOf(p,w),tot=w?sq(p,w):p.q;let r=r2(tot-L.reduce((s,m)=>s+m.q,0));
+  const rows=[['','رصيد سابق','','','','',f(r)]];
+  L.forEach(m=>{r=r2(r+m.q);rows.push([m.d,m.t,m.id,esc(whN(m.w)),m.q>0?m.q:'',m.q<0?-m.q:'',f(r)])});
+  $('#kcard').innerHTML=`<h4>${esc(p.name)}</h4>`+tbl(['الكود','المجموعة','سعر البيع','متوسط التكلفة','الكمية','القيمة'],[[esc(p.code||''),esc(gN(p.grp)),f(p.price),f(p.cost),tot,f(tot*p.cost)]])+`<p>${whQ(p)}</p>`+tbl(['التاريخ','الحركة','المستند','المخزن','وارد','صادر','الرصيد'],rows);
+}
+function expKard(){
+  const t=document.querySelector('#kcard table:last-of-type');
+  if(!t)return alert('اعرض الكارت أولاً');
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.table_to_sheet(t),'كارت صنف');xl(wb,'كارت-صنف');
+}
 
 /* ====== الرسوم البيانية ====== */
 let chs=[];
@@ -684,7 +743,7 @@ pos(){
   if(!x)return `<div class="card"><h3>فتح وردية</h3><div class="row"><label>رصيد الدرج عند الفتح<input id="fl" type="number" step="0.01" value="0"></label><button class="b y" onclick="openSh()">فتح الوردية</button></div></div>`;
   return `<div class="card"><b>وردية مفتوحة</b> منذ ${tm(x.open)} | الفواتير: ${x.t.n} | نقدي ${f(x.t.cash)} | بطاقة ${f(x.t.card)} | محفظة ${f(x.t.wallet)}
   <button class="b d" onclick="closeUI()">إقفال الوردية</button> <button class="b" onclick="lastInv?rcpt(lastInv):alert('لا توجد عملية بعد')">طباعة آخر إيصال</button></div><div id="shbox"></div>
-  <div class="pos"><div class="card"><input id="ps" placeholder="ابحث أو امسح الباركود" oninput="pg()" onkeydown="if(event.key=='Enter')scan()" style="width:100%;margin-bottom:8px" autofocus><div class="pg" id="pg"></div></div>
+  <div class="pos"><div class="card"><select id="pw" onchange="posc=[];pg();posr()" style="margin-bottom:8px">${whOpts()}</select> <input id="ps" placeholder="ابحث أو امسح الباركود" oninput="pg()" onkeydown="if(event.key=='Enter')scan()" style="width:100%;margin-bottom:8px" autofocus><div class="pg" id="pg"></div></div>
   <div class="card"><h3>السلة</h3><div id="pcv"></div>
   <div class="row"><label>خصم على الفاتورة<input id="dv" type="number" step="0.01" value="0" onchange="posr()" style="width:100px"></label></div>
   <div id="ptot"></div>
@@ -695,8 +754,18 @@ pos(){
 sales(){return invUI('S')},
 purchases(){return invUI('P')},
 inventory(){
-  return `<div class="card"><h3>إضافة صنف</h3><div class="row"><label>الاسم<input id="pn"></label><label>الباركود<input id="pb"></label><label>سعر البيع<input id="pp" type="number" step="0.01"></label><label>كمية افتتاحية<input id="pq" type="number" value="0"></label><label>تكلفة الوحدة<input id="pc" type="number" step="0.01" value="0"></label><button class="b y" onclick="addP()">إضافة الصنف</button></div></div>
-  <div class="card"><h3>أرصدة المخزون</h3>${tbl(['#','الصنف','الباركود','سعر البيع','الكمية','متوسط التكلفة','القيمة'],db.products.map(p=>[p.id,esc(p.name),esc(p.code||''),f(p.price),p.q,f(p.cost),f(p.q*p.cost)]))}
+  const gO=db.grp.map(g=>`<option value="${g.id}">${esc(g.name)}</option>`).join(''),wO=whOpts(),pO=db.products.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join(''),
+  lO=db.loc.map(l=>`<option value="${l.id}">${esc(whN(l.wh))} - ${esc(l.name)}</option>`).join('');
+  return `<div class="card"><h3>إضافة صنف</h3><div class="row"><label>الاسم<input id="pn"></label><label>الباركود<input id="pb"></label><label>المجموعة<select id="pgp"><option value="">بدون مجموعة</option>${gO}</select></label><label>المخزن<select id="pwh">${wO}</select></label><label>سعر البيع<input id="pp" type="number" step="0.01"></label><label>كمية افتتاحية<input id="pq" type="number" value="0"></label><label>تكلفة الوحدة<input id="pc" type="number" step="0.01" value="0"></label><button class="b y" onclick="addP()">إضافة الصنف</button></div></div>
+  <div class="card"><h3>المخازن والمجموعات وأماكن التخزين</h3>
+  <div class="row"><label>مخزن جديد<input id="wn"></label><button class="b" onclick="addWh()">إضافة مخزن</button><label>مجموعة جديدة<input id="gn"></label><button class="b" onclick="addGrp()">إضافة مجموعة</button></div>
+  <div class="row"><label>مكان تخزين (رف أو غرفة)<input id="ln2"></label><label>داخل المخزن<select id="lw">${wO}</select></label><button class="b" onclick="addLoc()">إضافة مكان</button></div>
+  <div class="row"><label>الصنف<select id="sp">${pO}</select></label><label>المكان<select id="sl">${lO}</select></label><button class="b" onclick="setLoc()">تحديد مكان الصنف</button></div></div>
+  <div class="card"><h3>تحويل بين المخازن</h3><div class="row"><label>الصنف<select id="xp">${pO}</select></label><label>من<select id="xf">${wO}</select></label><label>إلى<select id="xt">${wO}</select></label><label>الكمية<input id="xq" type="number" min="1" style="width:90px"></label><button class="b" onclick="trfStock()">تحويل</button></div></div>
+  <div class="card"><h3>جرد وتسوية</h3><div class="row"><label>الصنف<select id="ap">${pO}</select></label><label>المخزن<select id="aw">${wO}</select></label><label>الكمية الفعلية<input id="ac2" type="number" min="0" style="width:110px"></label><button class="b" onclick="adjStock()">تسوية الفرق</button></div><small>الفرق بيتسجل بقيد على المخزون والمصروفات بتكلفة الصنف.</small></div>
+  <div class="card"><h3>كارت الصنف</h3><div class="row"><label>الصنف<select id="kp">${pO}</select></label><label>المخزن<select id="kw"><option value="">كل المخازن</option>${wO}</select></label><button class="b y" onclick="cardUI()">عرض الكارت</button><button class="b" onclick="expKard()">تصدير Excel</button></div><div id="kcard"></div></div>
+  <div class="card"><h3>أرصدة المخزون</h3><div class="row"><label>المجموعة<select onchange="invG=this.value;go('inventory')"><option value="">كل المجموعات</option>${gO.replace('value="'+invG+'"','value="'+invG+'" selected')}</select></label></div>
+  ${tbl(['#','الصنف','الباركود','المجموعة','سعر البيع','الإجمالي','حسب المخزن والمكان','متوسط التكلفة','القيمة'],db.products.filter(p=>!invG||p.grp==invG).map(p=>[p.id,esc(p.name),esc(p.code||''),esc(gN(p.grp)),f(p.price),p.q,whQ(p),f(p.cost),f(p.q*p.cost)]))}
   <p>إجمالي قيمة المخزون: <b>${f(db.products.reduce((s,p)=>s+p.q*p.cost,0))}</b></p></div>`;
 },
 setup(){
