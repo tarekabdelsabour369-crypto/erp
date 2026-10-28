@@ -62,9 +62,9 @@ const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const f=n=>Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
 const r2=x=>Math.round(x*100)/100,today=()=>new Date().toISOString().slice(0,10);
-const M=['dash','pos','sales','purchases','cash','inventory','setup','hr','journal','reports','edit','users'];
-const MN={dash:'الرئيسية',pos:'نقاط البيع',sales:'المبيعات',purchases:'المشتريات',cash:'الخزينة',inventory:'المخازن',setup:'التهيئة',hr:'الموارد البشرية',edit:'تعديل البيانات',journal:'القيود',reports:'التقارير',users:'المستخدمون'};
-const ACC=[['1000','النقدية','A','cash'],['1010','مقبوضات البطاقات','A','bank'],['1020','المحافظ الإلكترونية','A','wallet'],['1100','العملاء','A',null,null,true],['1400','سلف الموظفين','A'],['1200','المخزون','A',null,null,true],['1300','ضريبة مدخلات','A'],['2000','الموردون','L',null,null,true],['2100','ضريبة مخرجات','L'],['2200','رواتب مستحقة','L'],['2300','تأمينات مستحقة','L'],['3000','رأس المال','E'],['3100','أرصدة افتتاحية','E'],['4000','إيرادات المبيعات','R'],['4100','إيرادات أخرى','R'],['5000','تكلفة البضاعة المباعة','X'],['5100','مصروفات عمومية','X'],['5200','الرواتب والأجور','X'],['5300','إيجار','X'],['5400','كهرباء ومياه واتصالات','X'],['5500','مواصلات وانتقالات','X'],['5600','صيانة ونظافة','X']];
+const M=['dash','pos','sales','purchases','cash','reps','rep','inventory','setup','hr','journal','reports','edit','users'];
+const MN={dash:'الرئيسية',pos:'نقاط البيع',sales:'المبيعات',purchases:'المشتريات',cash:'الخزينة',reps:'إدارة المناديب',rep:'شاشة المندوب',inventory:'المخازن',setup:'التهيئة',hr:'الموارد البشرية',edit:'تعديل البيانات',journal:'القيود',reports:'التقارير',users:'المستخدمون'};
+const ACC=[['1000','النقدية','A','cash'],['1010','مقبوضات البطاقات','A','bank'],['1020','المحافظ الإلكترونية','A','wallet'],['1100','العملاء','A',null,null,true],['1400','سلف الموظفين','A'],['1200','المخزون','A',null,null,true],['1300','ضريبة مدخلات','A'],['2000','الموردون','L',null,null,true],['2100','ضريبة مخرجات','L'],['2200','رواتب مستحقة','L'],['2300','تأمينات مستحقة','L'],['3000','رأس المال','E'],['3100','أرصدة افتتاحية','E'],['4000','إيرادات المبيعات','R'],['4100','إيرادات أخرى','R'],['5000','تكلفة البضاعة المباعة','X'],['5100','مصروفات عمومية','X'],['5200','الرواتب والأجور','X'],['5250','عمولات المناديب','X'],['5300','إيجار','X'],['5400','كهرباء ومياه واتصالات','X'],['5500','مواصلات وانتقالات','X'],['5600','صيانة ونظافة','X']];
 const PA={cash:'1000',card:'1010',wallet:'1020'};
 let lastInv=0,hrt='emp',attD=new Date().toISOString().slice(0,10),payM=new Date().toISOString().slice(0,7);
 const TY={A:'أصل',L:'التزام',E:'حقوق ملكية',R:'إيراد',X:'مصروف'};
@@ -107,7 +107,7 @@ async function enter(u){
   const[a,b,c,d,e,pa,ac,shf,em,hh,iv]=await Promise.all([q('products'),q('invoices').order('id'),q('journal_entries').order('id'),q('settings'),q('profiles'),q('parties'),q('accounts'),q('shifts'),q('employees'),q('hr'),q('inv')]);
   db={products:(a.data||[]).map(({ext,...x})=>({...x,...(ext||{}),price:+x.price,q:+x.q,cost:+x.cost})),inv:(b.data||[]).map(x=>x.data),je:(c.data||[]).map(x=>x.data),vat:14,profiles:e.data||[],parties:(pa.data||[]).map(x=>x.data),shifts:(shf.data||[]).map(x=>x.data),emp:(em.data||[]).map(x=>x.data),hr:(hh.data||[]).map(x=>x.data)};
   const IV=(iv.data||[]).map(x=>x.data);
-  Object.assign(db,{wh:[{id:'w0',name:'المخزن الرئيسي'},...IV.filter(x=>x.k=='wh').map(x=>({id:String(x.id),name:x.name}))],grp:IV.filter(x=>x.k=='grp'),loc:IV.filter(x=>x.k=='loc'),mvs:IV.filter(x=>x.k=='mv')});
+  Object.assign(db,{wh:[{id:'w0',name:'المخزن الرئيسي'},...IV.filter(x=>x.k=='wh').map(x=>({id:String(x.id),name:x.name}))],grp:IV.filter(x=>x.k=='grp'),loc:IV.filter(x=>x.k=='loc'),mvs:IV.filter(x=>x.k=='mv'),reps:IV.filter(x=>x.k=='rep'),visits:IV.filter(x=>x.k=='visit')});
   const AC=ac.data||[];
   db.cc=AC.filter(x=>x.type=='CC').map(x=>({code:x.code,name:x.name}));
   AC.filter(x=>x.type!='CC').forEach(x=>{const o=ACC.find(y=>y[0]==x.code);if(o){o[4]=x.parent||o[4]||null}else ACC.push([x.code,x.name,x.type,x.kind||null,x.parent||null,!!x.ctl,!!x.hdr])});
@@ -346,7 +346,7 @@ function doRet(id){
       items.forEach(i=>{const p=db.products.find(x=>x.id==i.id);p.q-=i.q;mvq(p,o.wh||'w0',-i.q)});
       post(d,'مرتجع مشتريات للفاتورة '+id,[[acc,tot,0,o.pid],['1200',0,net],['1300',0,tax]],'PR'+id);
     }
-    db.inv.push({id:nid(),t:S?'SR':'PR',d,party:o.party,pid:o.pid,pay:o.pay,wh:o.wh,l:items,net,tax,tot,ref:id});
+    db.inv.push({id:nid(),t:S?'SR':'PR',d,party:o.party,pid:o.pid,pay:o.pay,wh:o.wh,rep:o.rep,l:items,net,tax,tot,ref:id});
     save();go(cur);alert('تم تسجيل فاتورة المرتجع');
   }catch(e){alert(e.message)}
 }
@@ -532,6 +532,93 @@ function expKard(){
   const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.table_to_sheet(t),'كارت صنف');xl(wb,'كارت-صنف');
 }
 
+/* ====== المناديب ====== */
+let repSel=null,rcart=[],repM=new Date().toISOString().slice(0,7);
+const DAYS=['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'],VR={order:'طلب بيع',none:'لا يوجد طلب',closed:'المحل مغلق',coll:'تحصيل فقط',follow:'متابعة'};
+const myRep=()=>db.reps.find(r=>r.uid&&r.uid==me.id),curRep=()=>myRep()||db.reps.find(r=>r.id==repSel)||db.reps[0],ptn=id=>db.parties.find(x=>x.id==id)||{};
+function repStats(r,m){
+  const iv=db.inv.filter(i=>i.rep==r.id&&i.d.startsWith(m)),sales=r2(iv.reduce((s,i)=>s+(i.t=='S'?i.net:i.t=='SR'?-i.net:0),0));
+  const col=r2(db.je.filter(j=>j.rep==r.id&&j.d.startsWith(m)&&j.ref.startsWith('RV')).reduce((s,j)=>s+j.l.find(l=>l[1]>0)[1],0));
+  return{sales,col,vis:db.visits.filter(v=>v.rid==r.id&&v.d.startsWith(m)).length,orders:iv.filter(i=>i.t=='S').length,com:r2(sales*r.cs/100+col*r.cc/100),pct:r.target?Math.round(sales/r.target*100):0};
+}
+function addRep(){
+  const n=$('#rn').value.trim();if(!n)return alert('أدخل اسم المندوب');
+  const wid=String(nid()),wr={id:+wid,k:'wh',name:'سيارة '+n};put('inv',wr);db.wh.push({id:wid,name:wr.name});
+  let c=Math.max(...trs().map(a=>+a[0]))+1;while(ACC.some(a=>a[0]==String(c)))c++;
+  const code=String(c);ACC.push([code,'عهدة '+n,'A','cash']);upAcc({code,name:'عهدة '+n,type:'A',kind:'cash'});
+  const r={id:nid(),k:'rep',name:n,phone:$('#rp2').value.trim(),uid:$('#ru').value||null,cs:+$('#rcs').value||0,cc:+$('#rcc').value||0,target:+$('#rt2').value||0,wh:wid,cash:code,status:'on'};
+  db.reps.push(r);put('inv',r);go('reps');
+}
+function setCust(id,k,v){const p=ptn(id);p[k]=k=='limit'?(+v||0):(k=='rep'&&v?+v:v);put('parties',p)}
+function repXfer(){
+  const r=db.reps.find(x=>x.id==+$('#vr').value),p=db.products.find(x=>x.id==+$('#vp').value),q=+$('#vq').value,out=$('#vd2').value=='out';
+  if(!r||!p||!(q>0))return alert('اختر المندوب والصنف وكمية صحيحة');
+  const a=out?'w0':r.wh,b=out?r.wh:'w0';
+  if(sq(p,a)<q)return alert('الكمية غير كافية في المخزن المصدر');
+  mvq(p,a,0);p.st[a]-=q;p.st[b]=(p.st[b]||0)+q;
+  const m={id:nid(),k:'mv',type:'trf',pid:p.id,from:a,to:b,q,d:today()};db.mvs.push(m);put('inv',m);save();go('reps');
+}
+function repSettle(id){
+  const r=db.reps.find(x=>x.id==id),v=r2(bal()[r.cash]);
+  if(v<=0)return alert('لا يوجد رصيد نقدي في عهدة المندوب');
+  if(!confirm('توريد '+f(v)+' من عهدة '+r.name+' إلى الخزنة الرئيسية؟'))return;
+  try{const n=db.je.filter(j=>j.ref.startsWith('TR')).length+1;post(today(),'توريد عهدة المندوب '+r.name,[['1000',v,0],[r.cash,0,v]],'TR'+n);save();go('reps')}catch(e){alert(e.message)}
+}
+function repCom(id){
+  const r=db.reps.find(x=>x.id==id),st=repStats(r,repM);r.paid=r.paid||{};
+  if(r.paid[repM])return alert('تم اعتماد عمولة هذا الشهر');
+  if(st.com<=0)return alert('لا توجد عمولة مستحقة');
+  if(!confirm('اعتماد عمولة '+f(st.com)+' للمندوب '+r.name+'؟'))return;
+  try{post(today(),'عمولة المندوب '+r.name+' عن '+repM,[['5250',st.com,0],['2200',0,st.com]],'COM'+r.id+repM);r.paid[repM]=st.com;put('inv',r);save();go('reps')}catch(e){alert(e.message)}
+}
+function rNewCust(){
+  const n=$('#nc').value.trim();if(!n)return alert('أدخل اسم العميل');
+  const p={id:nid(),type:'C',name:n,phone:$('#ncp').value.trim(),rep:curRep().id,day:''};db.parties.push(p);put('parties',p);go('rep');
+}
+function rVisitUI(pid){
+  $('#rbox').innerHTML=`<div class="card"><h3>زيارة: ${esc(ptn(pid).name)}</h3><div class="row"><label>النتيجة<select id="vres">${Object.keys(VR).map(k=>`<option value="${k}">${VR[k]}</option>`).join('')}</select></label><label>ملاحظات<input id="vnote" style="width:260px"></label><button class="b y" onclick="rVisitSave(${pid})">تسجيل الزيارة</button></div><small>بيتسجل موقعك (GPS) مع الزيارة لو سمحت للمتصفح.</small></div>`;
+  $('#rbox').scrollIntoView();
+}
+function rVisitSave(pid){
+  const rec={id:nid(),k:'visit',rid:curRep().id,pid,d:today(),tm:new Date().toTimeString().slice(0,5),res:$('#vres').value,note:$('#vnote').value.trim()};
+  const fin=()=>{db.visits.push(rec);put('inv',rec);go('rep')};
+  if(navigator.geolocation)navigator.geolocation.getCurrentPosition(g=>{rec.lat=g.coords.latitude;rec.lng=g.coords.longitude;fin()},fin,{timeout:5000});else fin();
+}
+function rfp(){const p=db.products.find(x=>x.id==+$('#rip').value);$('#rpr').value=p?p.price:''}
+function rlr(){
+  const t=rcart.reduce((s,l)=>s+l.q*l.pr,0);
+  $('#rln').innerHTML=tbl(['الصنف','الكمية','السعر','الإجمالي',''],rcart.map((l,i)=>[esc(pn(l.id)),l.q,f(l.pr),f(l.q*l.pr),`<button class="b d" onclick="rcart.splice(${i},1);rlr()">حذف</button>`]))+`<p>الصافي ${f(t)} | شامل الضريبة <b>${f(t*(1+db.vat/100))}</b></p>`;
+}
+function rAdd(){
+  const id=+$('#rip').value,q=+$('#riq').value,pr=+$('#rpr').value;
+  if(!id||q<=0||pr<0)return alert('اختر صنفاً وكمية وسعراً صحيحين');
+  rcart.push({id,q,pr});rlr();
+}
+function rSaleUI(pid){
+  const r=curRep(),c=ptn(pid);rcart=[];
+  $('#rbox').innerHTML=`<div class="card"><h3>فاتورة بيع: ${esc(c.name)} (الرصيد ${f(pbal(c))})</h3><div class="row"><label>الصنف<select id="rip" onchange="rfp()">${db.products.filter(p=>sq(p,r.wh)>0).map(p=>`<option value="${p.id}">${esc(p.name)} (${sq(p,r.wh)})</option>`).join('')}</select></label><label>الكمية<input id="riq" type="number" min="1" value="1" style="width:80px"></label><label>السعر<input id="rpr" type="number" step="0.01" style="width:100px"></label><button class="b y" onclick="rAdd()">إضافة</button></div><div id="rln"></div><div class="row"><label>الدفع<select id="rpay"><option value="cash">نقدًا (في عهدتي)</option><option value="credit">آجل</option></select></label><button class="b" onclick="rSaleSave(${pid})">حفظ الفاتورة</button></div></div>`;
+  rfp();rlr();$('#rbox').scrollIntoView();
+}
+function rSaleSave(pid){
+  const r=curRep(),c=ptn(pid),pay=$('#rpay').value;
+  if(!rcart.length)return alert('الفاتورة فارغة');
+  const tot=r2(rcart.reduce((s,l)=>s+l.q*l.pr,0)*(1+db.vat/100));
+  if(pay=='credit'&&c.limit&&r2(pbal(c)+tot)>c.limit&&!confirm('الفاتورة هتتخطى الحد الائتماني للعميل ('+f(c.limit)+'). تكمل؟'))return;
+  try{
+    const id=sale(c.name,pay=='credit'?'credit':r.cash,rcart.map(l=>({...l})),today(),c.id,0,null,r.wh);
+    db.inv.find(x=>x.id==id).rep=r.id;rcart=[];save();alert('تم حفظ الفاتورة رقم '+id);go('rep');
+  }catch(e){alert(e.message)}
+}
+function rColUI(pid){
+  $('#rbox').innerHTML=`<div class="card"><h3>تحصيل من: ${esc(ptn(pid).name)} (الرصيد ${f(pbal(ptn(pid)))})</h3><div class="row"><label>المبلغ<input id="cv" type="number" step="0.01"></label><button class="b y" onclick="rColSave(${pid})">تسجيل التحصيل</button></div></div>`;
+  $('#rbox').scrollIntoView();
+}
+function rColSave(pid){
+  const r=curRep(),c=ptn(pid),v=r2(+$('#cv').value);
+  if(v<=0)return alert('أدخل المبلغ');
+  try{const n=db.je.filter(j=>j.ref.startsWith('RV')).length+1;post(today(),'سند قبض من '+c.name+' (مندوب '+r.name+')',[[r.cash,v,0],['1100',0,v,c.id]],'RV'+n);db.je[db.je.length-1].rep=r.id;save();go('rep')}catch(e){alert(e.message)}
+}
+
 /* ====== تعديل البيانات (للمدير) ====== */
 let edT='acc';
 const MU=M.filter(m=>m!='edit'),SYS=['1000','1010','1020','1100','1200','1300','1400','2000','2100','2200','2300','3000','3100','4000','5000','5100','5200'];
@@ -541,12 +628,13 @@ const EF={
  emp:[['name','الاسم','t'],['job','الوظيفة','t'],['dept','القسم','t'],['hire','تاريخ التعيين','d'],['phone','الهاتف','t'],['natid','الرقم القومي','t'],['basic','الراتب الأساسي','n'],['allow','البدلات','n'],['insp','نسبة التأمينات %','n'],['status','الحالة','s',ST]],
  prod:[['name','الاسم','t'],['code','الباركود','t'],['price','سعر البيع','n'],['grp','المجموعة','grp']],
  party:[['name','الاسم','t'],['phone','الهاتف','t']],
+ rep:[['name','الاسم','t'],['phone','الهاتف','t'],['cs','عمولة مبيعات %','n'],['cc','عمولة تحصيل %','n'],['target','التارجت الشهري','n'],['status','الحالة','s',{on:'نشط',off:'موقوف'}]],
  wh:[['name','الاسم','t']],grp:[['name','الاسم','t']],loc:[['name','الاسم','t']]
 };
 function edObj(t,k){
   if(t=='acc'){const a=ACC.find(x=>x[0]==k);return{name:a[1],type:a[2],kind:a[3]||'',parent:a[4]||'',ctl:!!a[5],hdr:!!a[6]}}
   if(t=='cc')return db.cc.find(x=>x.code==k);
-  return{emp:db.emp,prod:db.products,party:db.parties,wh:db.wh,grp:db.grp,loc:db.loc}[t].find(x=>String(x.id)==k);
+  return{emp:db.emp,prod:db.products,party:db.parties,wh:db.wh,grp:db.grp,loc:db.loc,rep:db.reps}[t].find(x=>String(x.id)==k);
 }
 function edList(){
   const E=k=>`<button class="b" onclick="ed('${edT}','${k}')">تعديل</button>`;
@@ -559,6 +647,7 @@ function edList(){
    wh:()=>[['المخزن'],db.wh.map(w=>[esc(w.name),E(w.id)])],
    grp:()=>[['المجموعة'],db.grp.map(g=>[esc(g.name),E(g.id)])],
    loc:()=>[['المكان','المخزن'],db.loc.map(l=>[esc(l.name),esc(whN(l.wh)),E(l.id)])],
+   rep:()=>[['المندوب','الهاتف','التارجت','الحالة'],db.reps.map(r=>[esc(r.name),esc(r.phone),f(r.target),r.status=='on'?'نشط':'موقوف',E(r.id)])],
    je:()=>[['#','التاريخ','البيان','المرجع','المبلغ'],db.je.slice().reverse().slice(0,60).map(j=>[j.id,j.d,esc(j.desc),j.ref||'',f(j.l.reduce((s,l)=>s+l[1],0)),E(j.id)])]
   }[edT]();
   return tbl([...L[0],''],L[1]);
@@ -599,7 +688,7 @@ function edSave(t,k){
   }else if(t=='wh'){
     if(o.id=='w0')return alert('المخزن الرئيسي الافتراضي لا يُعاد تسميته');
     o.name=v.name;put('inv',{id:+o.id,k:'wh',name:v.name});
-  }else{Object.assign(o,v);put({emp:'employees',party:'parties',grp:'inv',loc:'inv'}[t],o)}
+  }else{Object.assign(o,v);put({emp:'employees',party:'parties',grp:'inv',loc:'inv',rep:'inv'}[t],o)}
   alert('تم حفظ التعديل');go('edit');
 }
 function edJe(id){
@@ -937,8 +1026,32 @@ cash(){
   <div class="card"><h3>آخر السندات</h3>${tbl(['الرقم','التاريخ','البيان','المبلغ',''],db.je.filter(j=>/^(RV|PV|TR)/.test(j.ref)).slice().reverse().slice(0,30).map(j=>[j.ref,j.d,esc(j.desc),f(j.l.find(l=>l[1]>0)[1]),`<button class="b" onclick="vp(${j.id})">طباعة</button>`]))}</div>`;
 },
 edit(){
-  const T={acc:'الحسابات',cc:'مراكز التكلفة',emp:'الموظفون',prod:'الأصناف',party:'العملاء والموردون',wh:'المخازن',grp:'مجموعات الأصناف',loc:'أماكن التخزين',je:'القيود اليومية'};
+  const T={acc:'الحسابات',cc:'مراكز التكلفة',emp:'الموظفون',prod:'الأصناف',party:'العملاء والموردون',wh:'المخازن',grp:'مجموعات الأصناف',loc:'أماكن التخزين',rep:'المناديب',je:'القيود اليومية'};
   return `<div class="card"><h3>تعديل البيانات (للمدير فقط)</h3><div class="row"><label>نوع البيانات<select onchange="edT=this.value;go('edit')">${Object.keys(T).map(k=>`<option value="${k}" ${k==edT?'selected':''}>${T[k]}</option>`).join('')}</select></label></div></div><div id="edbox"></div><div class="card">${edList()}</div>`;
+},
+reps(){
+  const b=bal(),rO=db.reps.map(r=>`<option value="${r.id}">${esc(r.name)}</option>`).join(''),pO=db.products.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('');
+  return `<div class="card"><h3>إضافة مندوب</h3><div class="row"><label>الاسم<input id="rn"></label><label>الهاتف<input id="rp2"></label><label>ربط بمستخدم<select id="ru"><option value="">بدون ربط</option>${db.profiles.map(u=>`<option value="${u.id}">${esc(u.name||u.email)}</option>`).join('')}</select></label><label>عمولة مبيعات %<input id="rcs" type="number" step="0.01" value="0" style="width:90px"></label><label>عمولة تحصيل %<input id="rcc" type="number" step="0.01" value="0" style="width:90px"></label><label>التارجت الشهري<input id="rt2" type="number" value="0" style="width:110px"></label><button class="b y" onclick="addRep()">إضافة المندوب</button></div><small>بيتفتح للمندوب تلقائيًا مخزن سيارة وحساب عهدة نقدية. لتعديل بياناته استخدم تبويب تعديل البيانات.</small></div>
+  <div class="card"><h3>المناديب</h3>${tbl(['المندوب','الهاتف','عهدة نقدية','التارجت','العمولة (مبيعات / تحصيل)','الحالة',''],db.reps.map(r=>[esc(r.name),esc(r.phone),f(b[r.cash]),f(r.target),r.cs+'% / '+r.cc+'%',r.status=='on'?'نشط':'موقوف',`<button class="b" onclick="repSettle(${r.id})">توريد العهدة</button>`]))}</div>
+  <div class="card"><h3>تحميل السيارة أو إرجاع للمخزن الرئيسي</h3><div class="row"><label>المندوب<select id="vr">${rO}</select></label><label>الصنف<select id="vp">${pO}</select></label><label>الكمية<input id="vq" type="number" min="1" style="width:90px"></label><label>العملية<select id="vd2"><option value="out">تحميل من المخزن الرئيسي</option><option value="in">إرجاع للمخزن الرئيسي</option></select></label><button class="b y" onclick="repXfer()">تنفيذ</button></div>
+  ${tbl(['المندوب','مخزون السيارة'],db.reps.map(r=>[esc(r.name),db.products.filter(p=>sq(p,r.wh)>0).map(p=>esc(p.name)+': '+sq(p,r.wh)).join(' | ')||'فاضية']))}</div>
+  <div class="card"><h3>عملاء المناديب وخط السير</h3>${tbl(['العميل','المندوب','يوم الزيارة','الحد الائتماني','الرصيد'],db.parties.filter(p=>p.type=='C').map(p=>[esc(p.name),`<select onchange="setCust(${p.id},'rep',this.value)"><option value="">بدون</option>${db.reps.map(r=>`<option value="${r.id}" ${r.id==p.rep?'selected':''}>${esc(r.name)}</option>`).join('')}</select>`,`<select onchange="setCust(${p.id},'day',this.value)"><option value="">غير محدد</option>${DAYS.map((d,i)=>`<option value="${i}" ${p.day===String(i)?'selected':''}>${d}</option>`).join('')}</select>`,`<input type="number" value="${p.limit||0}" onchange="setCust(${p.id},'limit',this.value)" style="width:100px">`,f(pbal(p))]))}</div>
+  <div class="card"><h3>الأداء والعمولات</h3><div class="row"><label>الشهر<input type="month" value="${repM}" onchange="repM=this.value;go('reps')"></label></div>
+  ${tbl(['المندوب','زيارات','فواتير','المبيعات','التحصيل','التارجت','الإنجاز','العمولة',''],db.reps.map(r=>{const s=repStats(r,repM);return[esc(r.name),s.vis,s.orders,f(s.sales),f(s.col),f(r.target),s.pct+'%',f(s.com),(r.paid||{})[repM]?'تم الاعتماد':`<button class="b y" onclick="repCom(${r.id})">اعتماد العمولة</button>`]}))}
+  <small>العمولة المعتمدة بتتسجل على مصروف عمولات المناديب ورواتب مستحقة، وتصرفها بسند صرف من الخزينة على حساب الرواتب المستحقة.</small></div>
+  <div class="card"><h3>سجل الزيارات</h3>${tbl(['التاريخ','الوقت','المندوب','العميل','النتيجة','ملاحظات','الموقع'],[...db.visits].reverse().slice(0,40).map(v=>[v.d,v.tm,esc((db.reps.find(r=>r.id==v.rid)||{}).name),esc(ptn(v.pid).name),VR[v.res],esc(v.note),v.lat?`<a href="https://maps.google.com/?q=${v.lat},${v.lng}" target="_blank" rel="noopener">خريطة</a>`:'']))}</div>`;
+},
+rep(){
+  const r=curRep();
+  if(!r)return '<div class="card">لا يوجد مندوب مرتبط بحسابك. اطلب من المدير ربطك من شاشة إدارة المناديب.</div>';
+  const b=bal(),t=today(),dow=String(new Date().getDay()),st=repStats(r,t.slice(0,7)),td=repStats(r,t),tv=db.visits.filter(v=>v.rid==r.id&&v.d==t),cl=db.parties.filter(p=>p.type=='C'&&p.rep==r.id);
+  const row=p=>[esc(p.name),esc(p.phone||''),f(pbal(p)),tv.some(v=>v.pid==p.id)?'✔':'',`<button class="b" onclick="rVisitUI(${p.id})">زيارة</button> <button class="b y" onclick="rSaleUI(${p.id})">بيع</button> <button class="b" onclick="rColUI(${p.id})">تحصيل</button>`];
+  return `${myRep()?'':`<div class="card"><label>المندوب<select onchange="repSel=+this.value;go('rep')">${db.reps.map(x=>`<option value="${x.id}" ${x.id==r.id?'selected':''}>${esc(x.name)}</option>`).join('')}</select></label></div>`}
+  <div class="grid">${[['زيارات اليوم',tv.length],['مبيعات اليوم',f(td.sales)],['تحصيل اليوم',f(td.col)],['رصيد العهدة النقدية',f(b[r.cash])],['مبيعات الشهر',f(st.sales)],['إنجاز التارجت',st.pct+'%']].map(k=>`<div class="card"><div>${k[0]}</div><div class="k">${k[1]}</div></div>`).join('')}</div>
+  <div id="rbox"></div>
+  <div class="card"><h3>خط سير اليوم (${DAYS[+dow]})</h3>${tbl(['العميل','الهاتف','الرصيد','تمت زيارته',''],cl.filter(p=>p.day==dow).map(row))}</div>
+  <div class="card"><h3>كل عملائي</h3>${tbl(['العميل','الهاتف','الرصيد','تمت زيارته',''],cl.map(row))}<div class="row" style="margin-top:8px"><label>عميل جديد<input id="nc"></label><label>الهاتف<input id="ncp"></label><button class="b y" onclick="rNewCust()">إضافة عميل</button></div></div>
+  <div class="card"><h3>مخزون سيارتي</h3>${tbl(['الصنف','الكمية','سعر البيع'],db.products.filter(p=>sq(p,r.wh)>0).map(p=>[esc(p.name),sq(p,r.wh),f(p.price)]))}</div>`;
 },
 journal(){
   const o=ACC.filter(postable).map(a=>`<option value="${a[0]}">${a[0]} ${a[1]}</option>`).join('');
