@@ -62,9 +62,9 @@ const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const f=n=>Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
 const r2=x=>Math.round(x*100)/100,today=()=>new Date().toISOString().slice(0,10);
-const M=['dash','pos','sales','purchases','cash','reps','rep','inventory','setup','hr','journal','reports','edit','users'];
-const MN={dash:'الرئيسية',pos:'نقاط البيع',sales:'المبيعات',purchases:'المشتريات',cash:'الخزينة',reps:'إدارة المناديب',rep:'شاشة المندوب',inventory:'المخازن',setup:'التهيئة',hr:'الموارد البشرية',edit:'تعديل البيانات',journal:'القيود',reports:'التقارير',users:'المستخدمون'};
-const ACC=[['1000','النقدية','A','cash'],['1010','مقبوضات البطاقات','A','bank'],['1020','المحافظ الإلكترونية','A','wallet'],['1100','العملاء','A',null,null,true],['1400','سلف الموظفين','A'],['1200','المخزون','A',null,null,true],['1300','ضريبة مدخلات','A'],['2000','الموردون','L',null,null,true],['2100','ضريبة مخرجات','L'],['2200','رواتب مستحقة','L'],['2300','تأمينات مستحقة','L'],['3000','رأس المال','E'],['3100','أرصدة افتتاحية','E'],['4000','إيرادات المبيعات','R'],['4100','إيرادات أخرى','R'],['5000','تكلفة البضاعة المباعة','X'],['5100','مصروفات عمومية','X'],['5200','الرواتب والأجور','X'],['5250','عمولات المناديب','X'],['5300','إيجار','X'],['5400','كهرباء ومياه واتصالات','X'],['5500','مواصلات وانتقالات','X'],['5600','صيانة ونظافة','X']];
+const M=['dash','pos','sales','purchases','cash','reps','rep','inventory','setup','hr','journal','reports','tax','edit','users'];
+const MN={dash:'الرئيسية',pos:'نقاط البيع',sales:'المبيعات',purchases:'المشتريات',cash:'الخزينة',reps:'إدارة المناديب',rep:'شاشة المندوب',inventory:'المخازن',setup:'التهيئة',hr:'الموارد البشرية',edit:'تعديل البيانات',tax:'الضرائب',journal:'القيود',reports:'التقارير',users:'المستخدمون'};
+const ACC=[['1000','النقدية','A','cash'],['1010','مقبوضات البطاقات','A','bank'],['1020','المحافظ الإلكترونية','A','wallet'],['1100','العملاء','A',null,null,true],['1400','سلف الموظفين','A'],['1200','المخزون','A',null,null,true],['1300','ضريبة مدخلات','A'],['1320','ضرائب مخصومة لدى العملاء','A'],['2000','الموردون','L',null,null,true],['2100','ضريبة مخرجات','L'],['2110','ضريبة جدول مستحقة','L'],['2150','ضريبة خصم من المنبع مستحقة','L'],['2200','رواتب مستحقة','L'],['2300','تأمينات مستحقة','L'],['3000','رأس المال','E'],['3100','أرصدة افتتاحية','E'],['4000','إيرادات المبيعات','R'],['4100','إيرادات أخرى','R'],['5000','تكلفة البضاعة المباعة','X'],['5100','مصروفات عمومية','X'],['5200','الرواتب والأجور','X'],['5250','عمولات المناديب','X'],['5300','إيجار','X'],['5400','كهرباء ومياه واتصالات','X'],['5500','مواصلات وانتقالات','X'],['5600','صيانة ونظافة','X']];
 const PA={cash:'1000',card:'1010',wallet:'1020'};
 let lastInv=0,hrt='emp',attD=new Date().toISOString().slice(0,10),payM=new Date().toISOString().slice(0,7);
 const TY={A:'أصل',L:'التزام',E:'حقوق ملكية',R:'إيراد',X:'مصروف'};
@@ -111,7 +111,8 @@ async function enter(u){
   const AC=ac.data||[];
   db.cc=AC.filter(x=>x.type=='CC').map(x=>({code:x.code,name:x.name}));
   AC.filter(x=>x.type!='CC').forEach(x=>{const o=ACC.find(y=>y[0]==x.code);if(o){o[4]=x.parent||o[4]||null}else ACC.push([x.code,x.name,x.type,x.kind||null,x.parent||null,!!x.ctl,!!x.hdr])});
-  const v=(d.data||[]).find(x=>x.key=='vat');if(v)db.vat=+v.value;
+  const v=(d.data||[]).find(x=>x.key=='vat'),tsv=(d.data||[]).find(x=>x.key=='tax');if(v)db.vat=+v.value;
+  db.tax=Object.assign({vatSon:true,vatS:db.vat||14,vatPon:true,vatP:db.vat||14,cn:'',cid:'',wht:[{n:'توريدات تجارية',r:1},{n:'إيجارات وخدمات استثمارية',r:3},{n:'مهن حرة وعمولات وسمسرة',r:5}],tbl:[{n:'ضريبة جدول (حدد النسبة حسب السلعة)',r:0}]},tsv?tsv.value:{});
   synced={inv:db.inv.length,je:db.je.length};
   $('#lg').style.display='none';$('#app').style.display='block';$('#who').textContent=me.name||me.email;
   go(can('dash')?'dash':(M.find(can)||'dash'));
@@ -143,26 +144,26 @@ function bal(to,from){
   db.je.forEach(j=>{if((!to||j.d<=to)&&(!from||j.d>=from))j.l.forEach(l=>m[l[0]]=r2(m[l[0]]+l[1]-l[2]))});
   return m;
 }
-function sale(party,pay,items,d,pid,disc,pays,wh,cc){wh=wh||'w0';
+function sale(party,pay,items,d,pid,disc,pays,wh,cc,tx){wh=wh||'w0';
   if(pay=='credit'&&!pid)throw Error('اختر عميلاً للبيع الآجل');
   const need={};items.forEach(i=>need[i.id]=(need[i.id]||0)+i.q);
   for(const id in need){const p=db.products.find(x=>x.id==id);if(!p||sq(p,wh)<need[id])throw Error('الكمية غير كافية: '+pn(id))}
   let net=0,cogs=0;
   items.forEach(i=>{const p=db.products.find(x=>x.id==i.id);net+=i.q*i.pr;cogs+=i.q*p.cost;p.q-=i.q;mvq(p,wh,-i.q)});
   net=r2(net-(disc||0));cogs=r2(cogs);
-  const tax=r2(net*db.vat/100),tot=r2(net+tax),id=nid();
-  db.inv.push({id,t:'S',d,party,pid,pay,l:items,net,tax,tot,disc:disc||0,pays,wh,cc});
-  post(d,'فاتورة مبيعات #'+id,[...(pays?pays.map(x=>[PA[x.m],x.a,0]):[[pay=='credit'?'1100':(pay=='cash'?'1000':pay),tot,0,pid]]),['4000',0,net,undefined,cc],['2100',0,tax],['5000',cogs,0,undefined,cc],['1200',0,cogs]],'S'+id);
+  tx=tx||{};const tax=r2(net*(tx.vt===false?0:vs())/100),tb=r2(net*(tx.tb||0)/100),wt=r2(net*(tx.wh||0)/100),tot=r2(net+tax+tb),id=nid();
+  db.inv.push({id,t:'S',d,party,pid,pay,l:items,net,tax,tot,disc:disc||0,pays,wh,cc,tb,wt,vt:tx.vt!==false});
+  post(d,'فاتورة مبيعات #'+id,[...(pays?pays.map(x=>[PA[x.m],x.a,0]):[[pay=='credit'?'1100':(pay=='cash'?'1000':pay),r2(tot-wt),0,pid]]),...(wt>0?[['1320',wt,0]]:[]),['4000',0,net,undefined,cc],['2100',0,tax],['2110',0,tb],['5000',cogs,0,undefined,cc],['1200',0,cogs]],'S'+id);
   return id;
 }
-function purchase(party,pay,items,d,pid,wh){wh=wh||'w0';
+function purchase(party,pay,items,d,pid,wh,tx){wh=wh||'w0';
   if(pay=='credit'&&!pid)throw Error('اختر مورداً للشراء الآجل');
   let net=0;
   items.forEach(i=>{const p=db.products.find(x=>x.id==i.id);const v=i.q*i.pr;p.cost=r2((p.q*p.cost+v)/(p.q+i.q));p.q+=i.q;mvq(p,wh,i.q);net+=v});
   net=r2(net);
-  const tax=r2(net*db.vat/100),tot=r2(net+tax),id=nid();
-  db.inv.push({id,t:'P',d,party,pid,pay,l:items,net,tax,tot,wh});
-  post(d,'فاتورة مشتريات #'+id,[['1200',net,0],['1300',tax,0],[pay=='credit'?'2000':(pay=='cash'?'1000':pay),0,tot,pid]],'P'+id);
+  tx=tx||{};const tax=r2(net*(tx.vt===false?0:vpu())/100),wt=r2(net*(tx.wh||0)/100),tot=r2(net+tax),id=nid();
+  db.inv.push({id,t:'P',d,party,pid,pay,l:items,net,tax,wt,tot,wh,vt:tx.vt!==false});
+  post(d,'فاتورة مشتريات #'+id,[['1200',net,0],['1300',tax,0],[pay=='credit'?'2000':(pay=='cash'?'1000':pay),0,r2(tot-wt),pid],...(wt>0?[['2150',0,wt]]:[])],'P'+id);
   return id;
 }
 
@@ -174,7 +175,7 @@ function fillPr(t){
 function lnr(t){
   const L=t=='S'?cart:pcart,tot=L.reduce((s,l)=>s+l.q*l.pr,0);
   $('#ln').innerHTML=tbl(['الصنف','الكمية','السعر','الإجمالي',''],L.map((l,i)=>[esc(pn(l.id)),l.q,f(l.pr),f(l.q*l.pr),`<button class="b d" onclick="delL('${t}',${i})">حذف</button>`]))+
-  `<p>الصافي: ${f(tot)} | ضريبة ${db.vat}%: ${f(tot*db.vat/100)} | الإجمالي: <b>${f(tot*(1+db.vat/100))}</b></p>`;
+  `<p>الصافي: ${f(tot)} | ضريبة ${vr(t)}%: ${f(tot*vr(t)/100)} | الإجمالي: <b>${f(tot*(1+vr(t)/100))}</b></p>`;
 }
 function addL(t){
   const id=+$('#ip').value,q=+$('#iq').value,pr=+$('#ipr').value;
@@ -187,7 +188,7 @@ function saveInv(t){
   if(!L.length)return alert('الفاتورة فارغة');
   try{
     const pid=+$('#pt').value||0,pr=db.parties.find(x=>x.id==pid),a=[pr?pr.name:(t=='S'?'عميل نقدي':'مورد عام'),$('#py').value,L.map(l=>({...l})),$('#dt').value||today(),pid];
-    const w=$('#iw').value,id=t=='S'?sale(...a,0,null,w,($('#icc')||{}).value||undefined):purchase(...a,w);
+    const w=$('#iw').value,tx={vt:$('#ivt').checked,wh:+$('#iwh').value||0,tb:+($('#itb')||{}).value||0},id=t=='S'?sale(...a,0,null,w,($('#icc')||{}).value||undefined,tx):purchase(...a,w,tx);
     save();L.length=0;go(cur);alert('تم حفظ الفاتورة رقم '+id);
   }catch(e){alert(e.message)}
 }
@@ -195,7 +196,7 @@ const list=t=>`<div class="card"><h3>آخر الفواتير</h3>${tbl(['#','ا�
 function invUI(t){
   const S=t=='S';
   return `<div class="card"><h3>${S?'فاتورة مبيعات':'فاتورة مشتريات'}</h3>
-  <div class="row"><label>${S?'العميل':'المورد'}<select id="pt"><option value="">${S?'عميل نقدي':'مورد عام'}</option>${db.parties.filter(p=>p.type==(S?'C':'S')).map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select></label><label>التاريخ<input id="dt" type="date" value="${today()}"></label><label>المخزن<select id="iw">${whOpts()}</select></label>${S?`<label>مركز التكلفة<select id="icc">${ccO()}</select></label>`:''}
+  <div class="row"><label>${S?'العميل':'المورد'}<select id="pt"><option value="">${S?'عميل نقدي':'مورد عام'}</option>${db.parties.filter(p=>p.type==(S?'C':'S')).map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select></label><label>التاريخ<input id="dt" type="date" value="${today()}"></label><label>المخزن<select id="iw">${whOpts()}</select></label>${S?`<label>مركز التكلفة<select id="icc">${ccO()}</select></label>`:''}<label style="flex-direction:row;align-items:center;gap:4px"><input type="checkbox" id="ivt" ${(S?db.tax.vatSon:db.tax.vatPon)?'checked':''}>تطبيق القيمة المضافة</label><label>${S?'خصم من المنبع (يخصمه العميل)':'خصم من المنبع (نخصمه من المورد)'}<select id="iwh"><option value="0">بدون</option>${db.tax.wht.filter(w=>w.r>0).map(w=>`<option value="${w.r}">${esc(w.n)} (${w.r}%)</option>`).join('')}</select></label>${S?`<label>ضريبة جدول<select id="itb"><option value="0">بدون</option>${db.tax.tbl.filter(w=>w.r>0).map(w=>`<option value="${w.r}">${esc(w.n)} (${w.r}%)</option>`).join('')}</select></label>`:''}
   <label>الدفع<select id="py">${trs().map(a=>`<option value="${a[0]}">${esc(a[1])}</option>`).join('')}<option value="credit">آجل</option></select></label></div>
   <div class="row"><label>الصنف<select id="ip" onchange="fillPr('${t}')">${db.products.map(p=>`<option value="${p.id}">${esc(p.name)} (${p.q})</option>`).join('')}</select></label>
   <label>الكمية<input id="iq" type="number" min="1" value="1" style="width:90px"></label>
@@ -229,7 +230,7 @@ function pq2(i,d){
 function pdp(i,v){posc[i].dp=Math.min(100,Math.max(0,+v||0));posr()}
 const posItems=()=>posc.map(l=>({id:l.id,q:l.q,pr:r2(l.pr*(1-(l.dp||0)/100))}));
 function posTot(){
-  const it=posItems(),sub=r2(it.reduce((s,i)=>s+i.q*i.pr,0)),dv=Math.min(sub,Math.max(0,r2(+($('#dv')?$('#dv').value:0)||0))),net=r2(sub-dv),tax=r2(net*db.vat/100);
+  const it=posItems(),sub=r2(it.reduce((s,i)=>s+i.q*i.pr,0)),dv=Math.min(sub,Math.max(0,r2(+($('#dv')?$('#dv').value:0)||0))),net=r2(sub-dv),tax=r2(net*vs()/100);
   return{sub,dv,net,tax,tot:r2(net+tax),gross:r2(posc.reduce((s,l)=>s+l.q*l.pr,0))};
 }
 function posr(){
@@ -264,7 +265,7 @@ function pw(h){
 function rcpt(id){
   const o=db.inv.find(x=>x.id==id),PN={cash:'نقدي',card:'بطاقة',wallet:'محفظة'};
   if(!o)return;
-  pw(`<div class="c"><b>إيصال بيع</b><br>رقم ${o.id}<br>${o.d}</div><hr><table>${o.l.map(i=>`<tr><td>${esc(pn(i.id))}</td><td>${i.q} × ${f(i.pr)}</td><td>${f(i.q*i.pr)}</td></tr>`).join('')}</table><hr><table><tr><td>خصم الفاتورة</td><td>${f(o.disc||0)}</td></tr><tr><td>الصافي</td><td>${f(o.net)}</td></tr><tr><td>الضريبة</td><td>${f(o.tax)}</td></tr><tr><td><b>الإجمالي</b></td><td><b>${f(o.tot)}</b></td></tr>${(o.pays||[]).map(x=>`<tr><td>${PN[x.m]}</td><td>${f(x.a)}</td></tr>`).join('')}${o.change?`<tr><td>الباقي للعميل</td><td>${f(o.change)}</td></tr>`:''}</table><hr><div class="c">شكراً لزيارتكم</div>`);
+  pw(`<div class="c"><b>إيصال بيع</b><br>رقم ${o.id}<br>${o.d}<br>${esc(o.party||'')}</div><hr><table>${o.l.map(i=>`<tr><td>${esc(pn(i.id))}</td><td>${i.q} × ${f(i.pr)}</td><td>${f(i.q*i.pr)}</td></tr>`).join('')}</table><hr><table><tr><td>خصم الفاتورة</td><td>${f(o.disc||0)}</td></tr><tr><td>الصافي</td><td>${f(o.net)}</td></tr><tr><td>الضريبة</td><td>${f(o.tax)}</td></tr>${o.tb?`<tr><td>ضريبة الجدول</td><td>${f(o.tb)}</td></tr>`:''}${o.wt?`<tr><td>خصم من المنبع</td><td>${f(o.wt)}</td></tr>`:''}<tr><td><b>الإجمالي</b></td><td><b>${f(o.tot)}</b></td></tr>${(o.pays||[]).map(x=>`<tr><td>${PN[x.m]}</td><td>${f(x.a)}</td></tr>`).join('')}${o.change?`<tr><td>الباقي للعميل</td><td>${f(o.change)}</td></tr>`:''}</table><hr><div class="c">شكراً لزيارتكم</div>`);
 }
 function openSh(){
   const x={id:nid(),uid:me.id,name:me.name||me.email,open:new Date().toISOString(),float:r2(+$('#fl').value||0),close:null,t:{cash:0,card:0,wallet:0,n:0,disc:0}};
@@ -312,7 +313,7 @@ async function savePerms(id){
 }
 async function saveVat(){
   db.vat=+$('#vt').value;
-  const{error}=await sb.from('settings').upsert({key:'vat',value:db.vat});
+  const{error}=await sb.from('settings').upsert({key:'vat',value:vs()});
   alert(error?error.message:'تم الحفظ');
 }
 function exp(){
@@ -336,17 +337,17 @@ function doRet(id){
       items.push({id:i.id,q,pr:i.pr});
     });
     if(!items.length)throw Error('أدخل كمية مرتجع لصنف واحد على الأقل');
-    const net=r2(items.reduce((s,i)=>s+i.q*i.pr,0)*(o.disc?o.net/(o.net+o.disc):1)),tax=o.net?r2(net*o.tax/o.net):0,tot=r2(net+tax),d=today(),acc=o.pay=='credit'?(S?'1100':'2000'):(o.pay=='cash'?'1000':o.pay);
+    const net=r2(items.reduce((s,i)=>s+i.q*i.pr,0)*(o.disc?o.net/(o.net+o.disc):1)),tax=o.net?r2(net*o.tax/o.net):0,tb=o.net?r2(net*(o.tb||0)/o.net):0,wt=o.net?r2(net*(o.wt||0)/o.net):0,tot=r2(net+tax+tb),d=today(),acc=o.pay=='credit'?(S?'1100':'2000'):(o.pay=='cash'?'1000':o.pay);
     if(S){
       const j=db.je.find(x=>x.ref=='S'+id),tq=o.l.reduce((s,i)=>s+i.q,0),uc=j&&tq?j.l.find(l=>l[0]=='5000')[1]/tq:0,cg=r2(items.reduce((s,i)=>s+i.q,0)*uc);
       items.forEach(i=>{const p=db.products.find(x=>x.id==i.id);if(p){p.cost=r2((p.q*p.cost+i.q*uc)/(p.q+i.q));p.q+=i.q;mvq(p,o.wh||'w0',i.q)}});
-      post(d,'مرتجع مبيعات للفاتورة '+id,[['4000',net,0,undefined,o.cc],['2100',tax,0],[acc,0,tot,o.pid],['1200',cg,0],['5000',0,cg,undefined,o.cc]],'SR'+id);
+      post(d,'مرتجع مبيعات للفاتورة '+id,[['4000',net,0,undefined,o.cc],['2100',tax,0],['2110',tb,0],[acc,0,r2(tot-wt),o.pid],...(wt>0?[['1320',0,wt]]:[]),['1200',cg,0],['5000',0,cg,undefined,o.cc]],'SR'+id);
     }else{
       items.forEach(i=>{const p=db.products.find(x=>x.id==i.id);if(!p||sq(p,o.wh||'w0')<i.q)throw Error('الكمية غير كافية للإرجاع: '+pn(i.id))});
       items.forEach(i=>{const p=db.products.find(x=>x.id==i.id);p.q-=i.q;mvq(p,o.wh||'w0',-i.q)});
-      post(d,'مرتجع مشتريات للفاتورة '+id,[[acc,tot,0,o.pid],['1200',0,net],['1300',0,tax]],'PR'+id);
+      post(d,'مرتجع مشتريات للفاتورة '+id,[[acc,r2(tot-wt),0,o.pid],...(wt>0?[['2150',wt,0]]:[]),['1200',0,net],['1300',0,tax]],'PR'+id);
     }
-    db.inv.push({id:nid(),t:S?'SR':'PR',d,party:o.party,pid:o.pid,pay:o.pay,wh:o.wh,rep:o.rep,l:items,net,tax,tot,ref:id});
+    db.inv.push({id:nid(),t:S?'SR':'PR',d,party:o.party,pid:o.pid,pay:o.pay,wh:o.wh,rep:o.rep,l:items,net,tax,tb,wt,tot,vt:o.vt,ref:id});
     save();go(cur);alert('تم تسجيل فاتورة المرتجع');
   }catch(e){alert(e.message)}
 }
@@ -576,6 +577,50 @@ function docCards(){
   `;
 }
 
+/* ====== الضرائب والإقرارات ====== */
+const vs=()=>db.tax.vatSon?db.tax.vatS:0,vpu=()=>db.tax.vatPon?db.tax.vatP:0,vr=t=>t=='S'?vs():vpu();
+let txF=new Date().toISOString().slice(0,8)+'01',txT=new Date().toISOString().slice(0,10),lastRepInv=0,rfR='',rfM='',rfC='';
+const wl=(k,L)=>L.map((w,i)=>`<div class="row"><label>الاسم<input class="w_${k}n" value="${esc(w.n)}" style="width:260px"></label><label>النسبة %<input class="w_${k}r" type="number" step="0.01" value="${w.r}" style="width:90px"></label><button class="b d" onclick="delW('${k}',${i})">حذف</button></div>`).join('');
+function addW(k){db.tax[k].push({n:'بند جديد',r:0});go('tax')}
+function delW(k,i){db.tax[k].splice(i,1);go('tax')}
+function saveTax(){
+  const t=db.tax;
+  t.vatSon=$('#t1').checked;t.vatS=+$('#t2').value||0;t.vatPon=$('#t3').checked;t.vatP=+$('#t4').value||0;t.cn=$('#t5').value.trim();t.cid=$('#t6').value.trim();
+  ['wht','tbl'].forEach(k=>{const N=document.querySelectorAll('.w_'+k+'n'),V=document.querySelectorAll('.w_'+k+'r');t[k]=[...N].map((e,i)=>({n:e.value.trim()||'بند',r:+V[i].value||0}))});
+  sb.from('settings').upsert({key:'tax',value:t}).then(r=>alert(r.error?'تعذر الحفظ (الإعدادات للمدير فقط): '+r.error.message:'تم حفظ إعدادات الضرائب'));
+}
+function txOut(){
+  const I=db.inv.filter(i=>i.d>=txF&&i.d<=txT),sg=i=>(i.t=='S'||i.t=='P')?1:-1,sm=(a,k)=>r2(a.reduce((s,i)=>s+sg(i)*(i[k]||0),0)),tx=i=>i.tax>0;
+  const S=I.filter(i=>i.t=='S'||i.t=='SR'),P=I.filter(i=>i.t=='P'||i.t=='PR'),sT=S.filter(tx),sN=S.filter(i=>!tx(i)),pT=P.filter(tx),pN=P.filter(i=>!tx(i)),out=sm(sT,'tax'),inn=sm(pT,'tax');
+  const T=(n,h,r)=>tbl(h,r).replace('<table>',`<table data-n="${n}">`),pt=id=>(db.parties.find(x=>x.id==id)||{}).taxid||'';
+  const wP=P.filter(i=>i.wt>0),wS=S.filter(i=>i.wt>0),tS=S.filter(i=>i.tb>0),row=i=>[i.d,i.t+i.id,esc(i.party),esc(pt(i.pid)),f(sg(i)*i.net),(i.net?r2(i.wt/i.net*100):0)+'%',f(sg(i)*i.wt)];
+  return `<h3>${esc(db.tax.cn||'')} ${db.tax.cid?'— الرقم الضريبي: '+esc(db.tax.cid):''}</h3><p>الفترة من ${txF} إلى ${txT}</p>
+  <h4>إقرار ضريبة القيمة المضافة</h4>`+T('القيمة المضافة',['البند','القيمة','الضريبة'],[['المبيعات الخاضعة',f(sm(sT,'net')),f(out)],['المبيعات غير الخاضعة أو المعفاة',f(sm(sN,'net')),''],['المشتريات الخاضعة',f(sm(pT,'net')),f(inn)],['المشتريات غير الخاضعة أو المعفاة',f(sm(pN,'net')),''],['<b>صافي الضريبة (مستحقة السداد، وبالسالب رصيد مرحّل)</b>','',`<b>${f(r2(out-inn))}</b>`]])
+  +'<h4>إقرار الخصم من المنبع (ما خصمناه من الموردين)</h4>'+T('خصم من المنبع',['التاريخ','الفاتورة','المورد','الرقم الضريبي','الوعاء','النسبة','المخصوم'],wP.map(row).concat([['','','','','','<b>الإجمالي</b>',`<b>${f(sm(wP,'wt'))}</b>`]]))
+  +'<h4>ضرائب خصمها العملاء علينا (إشعارات الخصم)</h4>'+T('مخصومة علينا',['التاريخ','الفاتورة','العميل','الرقم الضريبي','الوعاء','النسبة','المخصوم'],wS.map(row).concat([['','','','','','<b>الإجمالي</b>',`<b>${f(sm(wS,'wt'))}</b>`]]))
+  +'<h4>ضريبة الجدول</h4>'+T('ضريبة الجدول',['التاريخ','الفاتورة','العميل','الوعاء','الضريبة'],tS.map(i=>[i.d,i.t+i.id,esc(i.party),f(sg(i)*i.net),f(sg(i)*i.tb)]).concat([['','','','<b>الإجمالي</b>',`<b>${f(sm(tS,'tb'))}</b>`]]));
+}
+function txXl(){
+  const wb=XLSX.utils.book_new();
+  document.querySelectorAll('#txo table').forEach((t,i)=>XLSX.utils.book_append_sheet(wb,XLSX.utils.table_to_sheet(t),(t.dataset.n||'جدول'+(i+1)).slice(0,30)));
+  xl(wb,'إقرارات-ضريبية');
+}
+function txMail(){
+  const to=prompt('البريد الإلكتروني للمرسل إليه (المحاسب القانوني مثلًا)');if(to===null)return;
+  const body=[...document.querySelectorAll('#txo table')].map(t=>(t.dataset.n||'')+'\n'+[...t.rows].map(r=>[...r.cells].map(c=>c.innerText).join(' | ')).join('\n')).join('\n\n');
+  location.href='mailto:'+encodeURIComponent(to)+'?subject='+encodeURIComponent('الإقرارات الضريبية من '+txF+' إلى '+txT)+'&body='+encodeURIComponent((db.tax.cn?db.tax.cn+'\n':'')+body.slice(0,1500)+'\n\n(المرفق: ملف Excel المصدّر من البرنامج)');
+}
+function repToday(r){
+  const L=db.inv.filter(i=>i.rep==r.id&&i.d==today());
+  return (lastRepInv?`<div class="card"><b>تم حفظ الفاتورة رقم ${lastRepInv}</b> <button class="b y" onclick="rcpt(${lastRepInv})">طباعة إيصال</button></div>`:'')+`<div class="card"><h3>فواتير اليوم</h3>${tbl(['الرقم','العميل','الإجمالي','الدفع',''],L.map(i=>[i.id,esc(i.party),f(i.tot),i.pay=='credit'?'آجل':'نقدي',`<button class="b" onclick="rcpt(${i.id})">طباعة إيصال</button>`]))}</div>`;
+}
+function repInvCard(){
+  const rn=id=>(db.reps.find(r=>r.id==id)||{}).name||'',L=db.inv.filter(i=>i.rep&&(!rfR||i.rep==rfR)&&(!rfM||i.d.startsWith(rfM))&&(!rfC||i.pid==rfC)).sort((a,b)=>a.d<b.d?1:-1),tot=r2(L.reduce((s,i)=>s+(i.t=='SR'?-1:1)*i.tot,0));
+  return `<div class="card"><h3>فواتير المناديب</h3><div class="row"><label>المندوب<select onchange="rfR=this.value;go('reps')"><option value="">كل المناديب</option>${db.reps.map(r=>`<option value="${r.id}" ${r.id==rfR?'selected':''}>${esc(r.name)}</option>`).join('')}</select></label><label>الشهر<input type="month" value="${rfM}" onchange="rfM=this.value;go('reps')"></label><label>العميل<select onchange="rfC=this.value;go('reps')"><option value="">كل العملاء</option>${db.parties.filter(p=>p.type=='C').map(p=>`<option value="${p.id}" ${p.id==rfC?'selected':''}>${esc(p.name)}</option>`).join('')}</select></label><button class="b" onclick="expRepInv()">تصدير Excel</button></div>
+  <div id="rinv">${tbl(['التاريخ','الرقم','النوع','المندوب','العميل','الصافي','الضريبة','الإجمالي','الدفع',''],L.map(i=>[i.d,i.id,i.t=='SR'?'مرتجع':'بيع',esc(rn(i.rep)),esc(i.party),f(i.net),f(i.tax),f(i.tot),i.pay=='credit'?'آجل':'نقدي',`<button class="b" onclick="rcpt(${i.id})">طباعة</button>`]))}</div><p>عدد الفواتير: ${L.length} | الإجمالي بعد المرتجع: <b>${f(tot)}</b></p></div>`;
+}
+function expRepInv(){const t=document.querySelector('#rinv table');if(!t)return;const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.table_to_sheet(t),'فواتير المناديب');xl(wb,'فواتير-المناديب')}
+
 /* ====== المناديب ====== */
 let repSel=null,rcart=[],repM=new Date().toISOString().slice(0,7);
 const DAYS=['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'],VR={order:'طلب بيع',none:'لا يوجد طلب',closed:'المحل مغلق',coll:'تحصيل فقط',follow:'متابعة'};
@@ -631,7 +676,7 @@ function rVisitSave(pid){
 function rfp(){const p=db.products.find(x=>x.id==+$('#rip').value);$('#rpr').value=p?p.price:''}
 function rlr(){
   const t=rcart.reduce((s,l)=>s+l.q*l.pr,0);
-  $('#rln').innerHTML=tbl(['الصنف','الكمية','السعر','الإجمالي',''],rcart.map((l,i)=>[esc(pn(l.id)),l.q,f(l.pr),f(l.q*l.pr),`<button class="b d" onclick="rcart.splice(${i},1);rlr()">حذف</button>`]))+`<p>الصافي ${f(t)} | شامل الضريبة <b>${f(t*(1+db.vat/100))}</b></p>`;
+  $('#rln').innerHTML=tbl(['الصنف','الكمية','السعر','الإجمالي',''],rcart.map((l,i)=>[esc(pn(l.id)),l.q,f(l.pr),f(l.q*l.pr),`<button class="b d" onclick="rcart.splice(${i},1);rlr()">حذف</button>`]))+`<p>الصافي ${f(t)} | شامل الضريبة <b>${f(t*(1+vs()/100))}</b></p>`;
 }
 function rAdd(){
   const id=+$('#rip').value,q=+$('#riq').value,pr=+$('#rpr').value;
@@ -646,11 +691,11 @@ function rSaleUI(pid){
 function rSaleSave(pid){
   const r=curRep(),c=ptn(pid),pay=$('#rpay').value;
   if(!rcart.length)return alert('الفاتورة فارغة');
-  const tot=r2(rcart.reduce((s,l)=>s+l.q*l.pr,0)*(1+db.vat/100));
+  const tot=r2(rcart.reduce((s,l)=>s+l.q*l.pr,0)*(1+vs()/100));
   if(pay=='credit'&&c.limit&&r2(pbal(c)+tot)>c.limit&&!confirm('الفاتورة هتتخطى الحد الائتماني للعميل ('+f(c.limit)+'). تكمل؟'))return;
   try{
     const id=sale(c.name,pay=='credit'?'credit':r.cash,rcart.map(l=>({...l})),today(),c.id,0,null,r.wh);
-    db.inv.find(x=>x.id==id).rep=r.id;rcart=[];save();alert('تم حفظ الفاتورة رقم '+id);go('rep');
+    db.inv.find(x=>x.id==id).rep=r.id;rcart=[];lastRepInv=id;save();go('rep');
   }catch(e){alert(e.message)}
 }
 function rColUI(pid){
@@ -665,13 +710,13 @@ function rColSave(pid){
 
 /* ====== تعديل البيانات (للمدير) ====== */
 let edT='acc';
-const MU=M.filter(m=>m!='edit'),SYS=['1000','1010','1020','1100','1200','1300','1400','2000','2100','2200','2300','3000','3100','4000','5000','5100','5200'];
+const MU=M.filter(m=>m!='edit'),SYS=['1000','1010','1020','1100','1200','1300','1400','2000','2100','2200','2300','3000','3100','4000','5000','5100','5200','5250','1320','2110','2150'];
 const EF={
  acc:[['name','الاسم','t'],['type','النوع','s',TY],['kind','نوع الخزينة','s',{'':'ليس خزينة',cash:'خزنة',bank:'بنك',wallet:'محفظة'}],['parent','الحساب الأب','par'],['ctl','حساب مراقبة','b'],['hdr','حساب تجميعي','b']],
  cc:[['name','الاسم','t']],
  emp:[['name','الاسم','t'],['job','الوظيفة','t'],['dept','القسم','t'],['hire','تاريخ التعيين','d'],['phone','الهاتف','t'],['natid','الرقم القومي','t'],['basic','الراتب الأساسي','n'],['allow','البدلات','n'],['insp','نسبة التأمينات %','n'],['status','الحالة','s',ST]],
  prod:[['name','الاسم','t'],['code','الباركود','t'],['price','سعر البيع','n'],['grp','المجموعة','grp']],
- party:[['name','الاسم','t'],['phone','الهاتف','t']],
+ party:[['name','الاسم','t'],['phone','الهاتف','t'],['taxid','الرقم الضريبي','t']],
  rep:[['name','الاسم','t'],['phone','الهاتف','t'],['cs','عمولة مبيعات %','n'],['cc','عمولة تحصيل %','n'],['target','التارجت الشهري','n'],['status','الحالة','s',{on:'نشط',off:'موقوف'}]],
  wh:[['name','الاسم','t']],grp:[['name','الاسم','t']],loc:[['name','الاسم','t']]
 };
@@ -997,7 +1042,7 @@ function rep(){
     const ce=b=>-ACC.filter(a=>a[2]=='E').reduce((s,a)=>s+b[a[0]],0),c0=ce(b0),c1=ce(b1),r0=re(b0),r1=re(b1);
     h=tbl(['البند','رأس المال','الأرباح المحتجزة','الإجمالي'],[['الرصيد أول الفترة',f(c0),f(r0),f(c0+r0)],['زيادة رأس المال',f(c1-c0),'',f(c1-c0)],['ربح (خسارة) الفترة','',f(r1-r0),f(r1-r0)],['<b>الرصيد آخر الفترة</b>',f(c1),f(r1),f(c1+r1)]]);
   }
-  if(t=='nt')h=`<ol><li>أساس الإعداد: مبدأ الاستحقاق، وهيكل العرض وفق معيار IAS 1.</li><li>المخزون يُقاس بالتكلفة بطريقة المتوسط المرجح (IAS 2).</li><li>الإيراد يُثبت عند إصدار فاتورة البيع (IFRS 15).</li><li>ضريبة القيمة المضافة بنسبة ${db.vat}% وتُعرض التزاماً أو أصلاً حسب رصيدها.</li><li>قائمة التدفقات النقدية بالطريقة المباشرة، وتصنّف حركة النقدية إلى تشغيلية وتمويلية.</li><li>عملة العرض هي عملة النظام، ولا توجد معاملات بعملات أجنبية.</li></ol>`;
+  if(t=='nt')h=`<ol><li>أساس الإعداد: مبدأ الاستحقاق، وهيكل العرض وفق معيار IAS 1.</li><li>المخزون يُقاس بالتكلفة بطريقة المتوسط المرجح (IAS 2).</li><li>الإيراد يُثبت عند إصدار فاتورة البيع (IFRS 15).</li><li>ضريبة القيمة المضافة بنسبة ${vs()}% وتُعرض التزاماً أو أصلاً حسب رصيدها.</li><li>قائمة التدفقات النقدية بالطريقة المباشرة، وتصنّف حركة النقدية إلى تشغيلية وتمويلية.</li><li>عملة العرض هي عملة النظام، ولا توجد معاملات بعملات أجنبية.</li></ol>`;
   $('#ro').innerHTML=`<h3>${$('#rt').selectedOptions[0].text}</h3>`+h;
 }
 
@@ -1079,7 +1124,7 @@ reps(){
   <div class="card"><h3>المناديب</h3>${tbl(['المندوب','الهاتف','عهدة نقدية','التارجت','العمولة (مبيعات / تحصيل)','الحالة',''],db.reps.map(r=>[esc(r.name),esc(r.phone),f(b[r.cash]),f(r.target),r.cs+'% / '+r.cc+'%',r.status=='on'?'نشط':'موقوف',`<button class="b" onclick="repSettle(${r.id})">توريد العهدة</button>`]))}</div>
   <div class="card"><h3>قيمة مخزن كل مندوب</h3>${tbl(['المندوب','عدد الأصناف','القيمة بالتكلفة','القيمة بسعر البيع','الأصناف'],db.reps.map(r=>{const L=db.products.filter(p=>sq(p,r.wh)>0);return[esc(r.name),L.length,f(L.reduce((s,p)=>s+sq(p,r.wh)*p.cost,0)),f(L.reduce((s,p)=>s+sq(p,r.wh)*p.price,0)),L.map(p=>esc(p.name)+': '+sq(p,r.wh)).join(' | ')||'فاضية']}))}<small>القيمة بتتحدث تلقائيًا مع كل بيع أو مرتجع للمندوب. التحميل والمرتجع بيتم من شاشة المخازن بواسطة أمين المخزن.</small></div>
   <div class="card"><h3>عملاء المناديب وخط السير</h3>${tbl(['العميل','المندوب','يوم الزيارة','الحد الائتماني','الرصيد'],db.parties.filter(p=>p.type=='C').map(p=>[esc(p.name),`<select onchange="setCust(${p.id},'rep',this.value)"><option value="">بدون</option>${db.reps.map(r=>`<option value="${r.id}" ${r.id==p.rep?'selected':''}>${esc(r.name)}</option>`).join('')}</select>`,`<select onchange="setCust(${p.id},'day',this.value)"><option value="">غير محدد</option>${DAYS.map((d,i)=>`<option value="${i}" ${p.day===String(i)?'selected':''}>${d}</option>`).join('')}</select>`,`<input type="number" value="${p.limit||0}" onchange="setCust(${p.id},'limit',this.value)" style="width:100px">`,f(pbal(p))]))}</div>
-  <div class="card"><h3>الأداء والعمولات</h3><div class="row"><label>الشهر<input type="month" value="${repM}" onchange="repM=this.value;go('reps')"></label></div>
+  ${repInvCard()}<div class="card"><h3>الأداء والعمولات</h3><div class="row"><label>الشهر<input type="month" value="${repM}" onchange="repM=this.value;go('reps')"></label></div>
   ${tbl(['المندوب','زيارات','فواتير','المبيعات','التحصيل','التارجت','الإنجاز','العمولة',''],db.reps.map(r=>{const s=repStats(r,repM);return[esc(r.name),s.vis,s.orders,f(s.sales),f(s.col),f(r.target),s.pct+'%',f(s.com),(r.paid||{})[repM]?'تم الاعتماد':`<button class="b y" onclick="repCom(${r.id})">اعتماد العمولة</button>`]}))}
   <small>العمولة المعتمدة بتتسجل على مصروف عمولات المناديب ورواتب مستحقة، وتصرفها بسند صرف من الخزينة على حساب الرواتب المستحقة.</small></div>
   <div class="card"><h3>سجل الزيارات</h3>${tbl(['التاريخ','الوقت','المندوب','العميل','النتيجة','ملاحظات','الموقع'],[...db.visits].reverse().slice(0,40).map(v=>[v.d,v.tm,esc((db.reps.find(r=>r.id==v.rid)||{}).name),esc(ptn(v.pid).name),VR[v.res],esc(v.note),v.lat?`<a href="https://maps.google.com/?q=${v.lat},${v.lng}" target="_blank" rel="noopener">خريطة</a>`:'']))}</div>`;
@@ -1091,10 +1136,21 @@ rep(){
   const row=p=>[esc(p.name),esc(p.phone||''),f(pbal(p)),tv.some(v=>v.pid==p.id)?'✔':'',`<button class="b" onclick="rVisitUI(${p.id})">زيارة</button> <button class="b y" onclick="rSaleUI(${p.id})">بيع</button> <button class="b" onclick="rColUI(${p.id})">تحصيل</button>`];
   return `${myRep()?'':`<div class="card"><label>المندوب<select onchange="repSel=+this.value;go('rep')">${db.reps.map(x=>`<option value="${x.id}" ${x.id==r.id?'selected':''}>${esc(x.name)}</option>`).join('')}</select></label></div>`}
   <div class="grid">${[['زيارات اليوم',tv.length],['مبيعات اليوم',f(td.sales)],['تحصيل اليوم',f(td.col)],['رصيد العهدة النقدية',f(b[r.cash])],['مبيعات الشهر',f(st.sales)],['إنجاز التارجت',st.pct+'%']].map(k=>`<div class="card"><div>${k[0]}</div><div class="k">${k[1]}</div></div>`).join('')}</div>
-  <div id="rbox"></div>
+  <div id="rbox"></div>${repToday(r)}
   <div class="card"><h3>خط سير اليوم (${DAYS[+dow]})</h3>${tbl(['العميل','الهاتف','الرصيد','تمت زيارته',''],cl.filter(p=>p.day==dow).map(row))}</div>
   <div class="card"><h3>كل عملائي</h3>${tbl(['العميل','الهاتف','الرصيد','تمت زيارته',''],cl.map(row))}<div class="row" style="margin-top:8px"><label>عميل جديد<input id="nc"></label><label>الهاتف<input id="ncp"></label><button class="b y" onclick="rNewCust()">إضافة عميل</button></div></div>
   <div class="card"><h3>مخزون سيارتي</h3>${tbl(['الصنف','الكمية','سعر البيع'],db.products.filter(p=>sq(p,r.wh)>0).map(p=>[esc(p.name),sq(p,r.wh),f(p.price)]))}</div>`;
+},
+tax(){
+  const t=db.tax;
+  return `<div class="card np"><h3>إعدادات الضرائب (للمدير)</h3>
+  <div class="row"><label>اسم المنشأة<input id="t5" value="${esc(t.cn)}"></label><label>الرقم الضريبي للمنشأة<input id="t6" value="${esc(t.cid)}"></label></div>
+  <div class="row"><label style="flex-direction:row;align-items:center;gap:4px"><input type="checkbox" id="t1" ${t.vatSon?'checked':''}>تطبيق القيمة المضافة على المبيعات</label><label>النسبة %<input id="t2" type="number" step="0.01" value="${t.vatS}" style="width:90px"></label><label style="flex-direction:row;align-items:center;gap:4px"><input type="checkbox" id="t3" ${t.vatPon?'checked':''}>تطبيق القيمة المضافة على المشتريات</label><label>النسبة %<input id="t4" type="number" step="0.01" value="${t.vatP}" style="width:90px"></label></div>
+  <h4>الخصم من المنبع (الخصم والإضافة)</h4>${wl('wht',t.wht)}<button class="b" onclick="addW('wht')">إضافة بند</button>
+  <h4>ضريبة الجدول (على المبيعات)</h4>${wl('tbl',t.tbl)}<button class="b" onclick="addW('tbl')">إضافة بند</button>
+  <p><button class="b y" onclick="saveTax()">حفظ الإعدادات</button></p><small>النسب مرجعية وقابلة للتعديل، وبتتغير بقرارات وزارة المالية. راجعها مع محاسب قانوني. كل فاتورة تقدر تطبّق عليها القيمة المضافة أو لا من شاشة الفاتورة نفسها.</small></div>
+  <div class="card np"><h3>الإقرارات الضريبية</h3><div class="row"><label>من<input type="date" value="${txF}" onchange="txF=this.value;go('tax')"></label><label>إلى<input type="date" value="${txT}" onchange="txT=this.value;go('tax')"></label><button class="b" onclick="print()">طباعة</button><button class="b" onclick="txXl()">تصدير Excel</button><button class="b y" onclick="txMail()">إرسال بالبريد</button></div></div>
+  <div class="card" id="txo">${txOut()}</div>`;
 },
 journal(){
   const o=ACC.filter(postable).map(a=>`<option value="${a[0]}">${a[0]} ${a[1]}</option>`).join('');
@@ -1111,7 +1167,7 @@ users(){
   return `<div class="card"><h3>المستخدمون والصلاحيات</h3><p><small>كل مستخدم جديد ينشئ حسابه من شاشة الدخول، ثم تحدد صلاحياته من هنا.</small></p>
   ${tbl(['المستخدم',...MU.map(m=>MN[m]),''],db.profiles.map(u=>[esc(u.name||u.email),...MU.map(m=>`<input type="checkbox" data-u="${u.id}" value="${m}" ${u.is_admin||(u.perms||[]).includes(m)?'checked':''} ${u.is_admin?'disabled':''}>`),u.is_admin?'مدير':`<button class="b y" onclick="savePerms('${u.id}')">حفظ</button>`]))}</div>
   <div class="card"><h3>ربط المستخدمين بالمخازن (أمناء المخازن)</h3><p><small>المستخدم المربوط بمخزن أو أكتر بيشوف المخازن دي بس، وكل عملياته بتتم عليها تلقائيًا. بدون ربط بيشوف كل المخازن.</small></p>${tbl(['المستخدم',...db.wh.map(w=>esc(w.name)),''],db.profiles.filter(u=>!u.is_admin).map(u=>[esc(u.name||u.email),...db.wh.map(w=>`<input type="checkbox" data-w="${u.id}" value="${w.id}" ${(u.perms||[]).includes('wh:'+w.id)?'checked':''}>`),`<button class="b y" onclick="saveWh('${u.id}')">حفظ</button>`]))}</div>
-  <div class="card"><div class="row"><label>نسبة ضريبة القيمة المضافة %<input id="vt" type="number" value="${db.vat}"></label><button class="b" onclick="saveVat()">حفظ النسبة</button><button class="b y" onclick="exp()">نسخة احتياطية</button></div></div>`;
+  <div class="card"><div class="row"><button class="b y" onclick="exp()">نسخة احتياطية</button></div></div>`;
 }};
 boot();
 </script>
