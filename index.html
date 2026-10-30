@@ -37,6 +37,7 @@ button.b.d{background:var(--r)}
 @media print{header,nav,.np{display:none}}
 .cg{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px}
 .cg .card{margin:0}
+.tr,.tr ul{list-style:none;margin:0;padding-right:22px;border-right:2px solid var(--b)}.tr li{margin:8px 0}
 </style>
 </head>
 <body>
@@ -55,6 +56,7 @@ button.b.d{background:var(--r)}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
 <script>
 const SB_URL='https://fjzlexvgrgtlzrvotmlc.supabase.co',SB_KEY='sb_publishable_vgl3rKOBQ1-wsEgLzUEQ5w_3vXomKMn';
 const sb=supabase.createClient(SB_URL,SB_KEY);
@@ -132,6 +134,7 @@ function go(m){
   if(m=='dash')charts();
   if(m=='reps')repCharts();
   if(m=='fleet'&&flt=='dash')fleetCharts();
+  if(m=='hr'&&hrt=='file')drawBc();
 }
 
 /* ====== المحاسبة (قيد مزدوج) ====== */
@@ -463,7 +466,7 @@ function slip(id,m){
 }
 const H={
 emp(){return `<div class="card"><h3>إضافة موظف</h3><div class="row"><label>الاسم<input id="en"></label><label>الوظيفة<input id="ej"></label><label>القسم<input id="ed"></label><label>تاريخ التعيين<input id="eh" type="date" value="${today()}"></label><label>الهاتف<input id="ep"></label><label>الرقم القومي<input id="ei"></label><label>الراتب الأساسي<input id="eb" type="number" step="0.01"></label><label>البدلات<input id="ea" type="number" step="0.01" value="0"></label><label>خصم التأمينات %<input id="es" type="number" step="0.01" value="0" style="width:90px"></label><button class="b y" onclick="addEmp()">إضافة</button></div></div>
-<div class="card">${tbl(['الاسم','الوظيفة','القسم','التعيين','الأساسي','البدلات','الحالة',''],db.emp.map((e,i)=>[esc(e.name),esc(e.job),esc(e.dept),e.hire,f(e.basic),f(e.allow),`<select onchange="empSt(${i},this.value)">${Object.keys(ST).map(k=>`<option value="${k}" ${e.status==k?'selected':''}>${ST[k]}</option>`).join('')}</select>`,`<button class="b" onclick="empSal(${i})">تعديل الراتب</button>`]))}</div>`},
+<div class="card"><div class="row np"><button class="b" onclick="printCards(db.emp.filter(e=>e.status=='active').map(e=>e.id))">طباعة كروت الموظفين النشطين</button></div>${tbl(['الاسم','الوظيفة','القسم','التعيين','الأساسي','البدلات','الحالة',''],db.emp.map((e,i)=>[(e.photo?`<img src="${e.photo}" style="width:28px;height:28px;border-radius:50%;object-fit:cover;vertical-align:middle">`:'')+' '+esc(e.name)+(e.code?' <small>'+esc(e.code)+'</small>':''),esc(e.job),esc(e.dept),e.hire,f(e.basic),f(e.allow),`<select onchange="empSt(${i},this.value)">${Object.keys(ST).map(k=>`<option value="${k}" ${e.status==k?'selected':''}>${ST[k]}</option>`).join('')}</select>`,`<button class="b y" onclick="openEmp(${e.id})">ملف الموظف</button> <button class="b" onclick="empSal(${i})">تعديل الراتب</button>`]))}</div>`},
 att(){const rec=e=>db.hr.find(x=>x.k=='att'&&x.eid==e.id&&x.d==attD)||{};
 return `<div class="card"><h3>الحضور والانصراف</h3><div class="row"><label>التاريخ<input type="date" value="${attD}" onchange="attD=this.value;go('hr')"></label><button class="b y" onclick="saveAtt()">حفظ الحضور</button></div>${tbl(['الموظف','الحالة','دقائق التأخير'],db.emp.filter(e=>e.status=='active').map(e=>{const r=rec(e);return[esc(e.name),`<select class="as" data-e="${e.id}">${[['p','حاضر'],['a','غائب'],['v','إجازة']].map(o=>`<option value="${o[0]}" ${(r.st||'p')==o[0]?'selected':''}>${o[1]}</option>`).join('')}</select>`,`<input type="number" class="al" data-e="${e.id}" min="0" value="${r.late||0}" style="width:80px">`]}))}</div>`},
 lv(){return `<div class="card"><h3>طلب إجازة</h3><div class="row"><label>الموظف<select id="lE">${eo()}</select></label><label>النوع<select id="lT">${Object.keys(LT).map(k=>`<option value="${k}">${LT[k]}</option>`).join('')}</select></label><label>من<input id="lF" type="date" value="${today()}"></label><label>إلى<input id="lU" type="date" value="${today()}"></label><button class="b y" onclick="addLv()">تقديم الطلب</button></div></div>
@@ -1217,6 +1220,116 @@ function expRep(all){
   xl(wb,'ميزان-تقارير');
 }
 
+/* ====== ملف الموظف والهيكل التنظيمي ====== */
+let hrE=null;
+const OB=()=>db.hr.filter(x=>x.k=='br'),OD=()=>db.hr.filter(x=>x.k=='dir'),OP=()=>db.hr.filter(x=>x.k=='dep'),OJ=()=>db.hr.filter(x=>x.k=='job'),oN=id=>(db.hr.find(x=>x.id==id)||{}).name||'';
+const ET={idc:'بطاقة الرقم القومي',lic:'رخصة',edu:'شهادة مؤهل',con:'عقد عمل',crm:'فيش وتشبيه',bir:'شهادة ميلاد',mil:'موقف التجنيد',ins:'مستند تأميني',med:'شهادة طبية',oth:'أخرى'};
+const EMS=[
+ ['بيانات شخصية',[['name','الاسم بالعربي','t'],['nameEn','الاسم بالإنجليزي','t'],['gender','النوع','s',{m:'ذكر',f:'أنثى'}],['birth','تاريخ الميلاد','d'],['birthPlace','محل الميلاد','t'],['nat','الجنسية','t'],['marital','الحالة الاجتماعية','s',{single:'أعزب',married:'متزوج',div:'مطلق',wid:'أرمل'}],['kids','عدد الأبناء','n'],['natid','الرقم القومي','t'],['idExp','انتهاء البطاقة','d'],['blood','فصيلة الدم','t'],['edu','المؤهل الدراسي','t'],['major','التخصص','t'],['mil','الموقف من التجنيد','s',{na:'غير مطلوب',done:'أدى الخدمة',exempt:'معفى',post:'مؤجل'}]]],
+ ['بيانات الاتصال',[['phone','الهاتف','t'],['phone2','هاتف بديل','t'],['email','البريد الإلكتروني','t'],['gov','المحافظة','t'],['addr','العنوان','t'],['emName','اسم جهة الطوارئ','t'],['emPhone','هاتف الطوارئ','t'],['emRel','صلة القرابة','t']]],
+ ['البيانات الوظيفية',[['hire','تاريخ التعيين','d'],['ctype','نوع التعاقد','s',{perm:'دائم',temp:'مؤقت',part:'جزئي',trial:'تحت التجربة',proj:'مشروع'}],['trialEnd','انتهاء فترة التجربة','d'],['contEnd','انتهاء العقد','d'],['grade','الدرجة الوظيفية','t'],['loc','مكان العمل','t'],['br','الفرع','ob'],['dir','الإدارة','od'],['dep','القسم','op'],['pos','المسمى الوظيفي (من الهرم الوظيفي)','oj'],['mgr','المدير المباشر','em'],['status','الحالة','s',ST]]],
+ ['البيانات المالية والتأمينية',[['basic','الراتب الأساسي','n'],['allow','البدلات','n'],['insp','نسبة خصم التأمينات %','n'],['insNo','الرقم التأميني','t'],['insDate','تاريخ بدء التأمين','d'],['payMode','طريقة الصرف','s',{cash:'نقدي',bank:'تحويل بنكي'}],['bank','البنك','t'],['acct','رقم الحساب أو IBAN','t']]]
+];
+const eOpts=(L,v,lab)=>'<option value="">—</option>'+L.map(x=>`<option value="${x.id}" ${x.id==v?'selected':''}>${esc(lab(x))}</option>`).join('');
+function empInp(q,e){
+  const id='ef2_'+q[0],v=e[q[0]]??'',t=q[2];
+  if(t=='s')return `<select id="${id}">${Object.keys(q[3]).map(x=>`<option value="${x}" ${x==v?'selected':''}>${q[3][x]}</option>`).join('')}</select>`;
+  if(t=='ob')return `<select id="${id}">${eOpts(OB(),v,x=>x.name)}</select>`;
+  if(t=='od')return `<select id="${id}">${eOpts(OD(),v,x=>oN(x.br)+' / '+x.name)}</select>`;
+  if(t=='op')return `<select id="${id}">${eOpts(OP(),v,x=>oN(x.dir)+' / '+x.name)}</select>`;
+  if(t=='oj')return `<select id="${id}">${eOpts(OJ(),v,x=>x.name)}</select>`;
+  if(t=='em')return `<select id="${id}">${eOpts(db.emp.filter(y=>y.id!=e.id),v,x=>x.name)}</select>`;
+  return `<input id="${id}" type="${t=='n'?'number':t=='d'?'date':'text'}" ${t=='n'?'step="0.01"':''} value="${esc(v)}">`;
+}
+function empCode(e){
+  if(!e.code){let n=db.emp.length;do{n++}while(db.emp.some(x=>x.code=='E'+String(n).padStart(4,'0')));e.code='E'+String(n).padStart(4,'0');put('employees',e)}
+  return e.code;
+}
+function openEmp(id){hrE=id;hrt='file';go('hr')}
+function drawBc(){const e=db.emp.find(x=>x.id==hrE),el=$('#ebc');if(e&&el&&window.JsBarcode)JsBarcode(el,empCode(e),{format:'CODE128',height:46,width:1.6,displayValue:true,fontSize:13,margin:2})}
+function bcSvg(code){if(!window.JsBarcode)return esc(code);const sv=document.createElementNS('http://www.w3.org/2000/svg','svg');JsBarcode(sv,code,{format:'CODE128',height:44,width:1.6,displayValue:true,fontSize:12,margin:0});return sv.outerHTML}
+function empSaveFile(id){
+  const e=db.emp.find(x=>x.id==id),v={};
+  for(const sc of EMS)for(const q of sc[1]){const el=$('#ef2_'+q[0]);v[q[0]]=q[2]=='n'?(+el.value||0):['ob','od','op','oj','em'].includes(q[2])?(+el.value||null):el.value.trim()}
+  if(!v.name)return alert('الاسم مطلوب');
+  if(!(v.basic>0))return alert('الراتب الأساسي مطلوب');
+  let n=0;for(let x=db.emp.find(y=>y.id==v.mgr);x&&n<100;x=db.emp.find(y=>y.id==x.mgr),n++)if(x.id==id)return alert('المدير المباشر المختار يعمل حلقة في الهيكل التبعي');
+  Object.assign(e,v);if(v.pos)e.job=oN(v.pos);if(v.dep)e.dept=oN(v.dep);
+  put('employees',e);alert('تم حفظ ملف الموظف');go('hr');
+}
+function empPhoto(id,inp){
+  const f=inp.files[0];if(!f)return;
+  const img=new Image(),u=URL.createObjectURL(f);
+  img.onload=()=>{const c=document.createElement('canvas'),r=Math.min(1,300/Math.max(img.width,img.height));c.width=img.width*r;c.height=img.height*r;c.getContext('2d').drawImage(img,0,0,c.width,c.height);const e=db.emp.find(x=>x.id==id);e.photo=c.toDataURL('image/jpeg',.82);put('employees',e);URL.revokeObjectURL(u);go('hr')};
+  img.onerror=()=>alert('الملف ده مش صورة صالحة');
+  img.src=u;
+}
+async function empDocUp(id){
+  const f=$('#ed_f').files[0];if(!f)return alert('اختر ملفًا');
+  const ext=(f.name.split('.').pop()||'bin').toLowerCase().replace(/[^a-z0-9]/g,'')||'bin',path=id+'/'+nid()+'.'+ext;
+  const{error}=await sb.storage.from('hr-docs').upload(path,f,{contentType:f.type||'application/octet-stream'});
+  if(error)return alert('تعذر الرفع: '+error.message+' (تأكد إن أمر SQL الخاص بالمستندات اتنفذ)');
+  const r={id:nid(),k:'edoc',eid:id,type:$('#ed_t').value,name:f.name,path,ext,size:f.size,d:today(),exp:$('#ed_x').value||''};
+  db.hr.push(r);put('hr',r);go('hr');
+}
+async function empDocView(did){const r=db.hr.find(x=>x.id==did),{data,error}=await sb.storage.from('hr-docs').createSignedUrl(r.path,300);if(error)return alert(error.message);open(data.signedUrl,'_blank')}
+async function empDocDel(did){
+  if(!confirm('حذف المستند نهائيًا؟'))return;
+  const r=db.hr.find(x=>x.id==did);await sb.storage.from('hr-docs').remove([r.path]);await sb.from('hr').delete().eq('id',r.id);db.hr=db.hr.filter(x=>x.id!=did);go('hr');
+}
+function cardHtml(e){
+  const code=empCode(e),org=[oN(e.br),oN(e.dir),oN(e.dep)].filter(Boolean).join(' / ');
+  return `<div class="c"><div class="h">${esc((db.tax&&db.tax.cn)||'بطاقة موظف')}</div><div class="b">${e.photo?`<img class="ph" src="${e.photo}">`:'<div class="ph"></div>'}<div><div class="n">${esc(e.name)}</div><div>${esc(e.job||'')}</div><div>${esc(org||e.dept||'')}</div><div>الكود: <b>${esc(code)}</b></div></div></div><div class="bc">${bcSvg(code)}</div></div>
+  <div class="c"><div class="h">بيانات الطوارئ</div><div class="b"><div><div>فصيلة الدم: <b>${esc(e.blood||'—')}</b></div><div>تاريخ التعيين: ${esc(e.hire||'')}</div><div>جهة الطوارئ: ${esc(e.emName||'—')}</div><div>هاتف الطوارئ: ${esc(e.emPhone||'—')}</div><div style="margin-top:4mm;color:#555">هذه البطاقة ملك للمنشأة، وعند العثور عليها يرجى إعادتها.</div></div></div></div>`;
+}
+function printCards(ids){
+  const L=db.emp.filter(e=>ids.includes(e.id));if(!L.length)return alert('لا يوجد موظفون');
+  const w=open('','_blank');if(!w)return alert('اسمح بالنوافذ المنبثقة للطباعة');
+  w.document.write(`<html dir="rtl"><head><meta charset="utf-8"><title>كروت الموظفين</title><style>body{font-family:Tahoma,Arial;margin:0;padding:8mm}.c{width:85.6mm;height:54mm;border:1px solid #333;border-radius:3mm;overflow:hidden;display:inline-block;vertical-align:top;margin:0 5mm 5mm 0;position:relative;background:#fff;page-break-inside:avoid}.h{background:#12353a;color:#fff;padding:2mm 3mm;font-size:11px;font-weight:bold}.b{padding:2mm 3mm;font-size:10px;display:flex;gap:3mm}.ph{width:22mm;height:26mm;border:1px solid #999;object-fit:cover;background:#eee}.n{font-size:13px;font-weight:bold}.bc{position:absolute;bottom:1.5mm;left:0;right:0;text-align:center}.bc svg{height:13mm;max-width:80mm}</style></head><body>${L.map(cardHtml).join('')}<script>onload=()=>print()<\/script></body></html>`);
+  w.document.close();
+}
+function orgAdd(k){
+  const g=id=>$('#'+id),n=g('o'+k+'_n').value.trim();if(!n)return alert('أدخل الاسم');
+  const r={id:nid(),k,name:n};
+  if(k=='br')r.addr=g('obr_a').value.trim();
+  if(k=='dir')r.br=+g('odir_b').value||null;
+  if(k=='dep')r.dir=+g('odep_d').value||null;
+  if(k=='job'){r.level=+g('ojob_l').value||1;r.parent=+g('ojob_p').value||null;r.grade=g('ojob_g').value.trim()}
+  db.hr.push(r);put('hr',r);go('hr');
+}
+function orgRen(id){const r=db.hr.find(x=>x.id==id),n=prompt('الاسم الجديد',r.name);if(n&&n.trim()){r.name=n.trim();put('hr',r);go('hr')}}
+const ren=id=>`<button class="b" onclick="orgRen(${id})">تعديل الاسم</button>`,cntE=(f,id)=>db.emp.filter(e=>e[f]==id).length;
+const empNode=e=>`<span style="display:inline-flex;align-items:center;gap:6px;background:#fff;border:1px solid var(--b);border-radius:8px;padding:4px 8px">${e.photo?`<img src="${e.photo}" style="width:30px;height:30px;border-radius:50%;object-fit:cover">`:''}<span><b>${esc(e.name)}</b><br><small>${esc(e.job||'')}</small></span></span>`;
+function mgrTree(par=null,seen=[]){
+  const L=db.emp.filter(e=>e.status!='ended'&&!seen.includes(e.id)&&(par===null?(!e.mgr||!db.emp.some(x=>x.id==e.mgr)):e.mgr==par));
+  return L.length?`<ul class="tr">${L.map(e=>`<li>${empNode(e)}${mgrTree(e.id,[...seen,e.id])}</li>`).join('')}</ul>`:'';
+}
+function posTree(par=null,seen=[]){
+  const L=OJ().filter(j=>!seen.includes(j.id)&&(par===null?(!j.parent||!OJ().some(x=>x.id==j.parent)):j.parent==par)).sort((a,b)=>(a.level||0)-(b.level||0));
+  return L.length?`<ul class="tr">${L.map(j=>`<li><b>${esc(j.name)}</b> <small>(مستوى ${j.level||1}${j.grade?' - '+esc(j.grade):''}) — ${db.emp.filter(e=>e.pos==j.id).map(e=>esc(e.name)).join('، ')||'شاغر'}</small>${posTree(j.id,[...seen,j.id])}</li>`).join('')}</ul>`:'';
+}
+function adminTree(){
+  return `<ul class="tr">${OB().map(b=>`<li><b>🏢 ${esc(b.name)}</b> <small>(${cntE('br',b.id)} موظف)</small><ul class="tr">${OD().filter(d=>d.br==b.id).map(d=>`<li><b>${esc(d.name)}</b> <small>(${cntE('dir',d.id)})</small><ul class="tr">${OP().filter(x=>x.dir==d.id).map(x=>`<li>${esc(x.name)} <small>(${cntE('dep',x.id)})</small></li>`).join('')}</ul></li>`).join('')}</ul></li>`).join('')}</ul>`;
+}
+H.org=()=>`<div class="card"><h3>الفروع</h3><div class="row"><label>اسم الفرع<input id="obr_n"></label><label>العنوان<input id="obr_a"></label><button class="b y" onclick="orgAdd('br')">إضافة فرع</button></div>${tbl(['الفرع','العنوان','الموظفون',''],OB().map(b=>[esc(b.name),esc(b.addr||''),cntE('br',b.id),ren(b.id)]))}</div>
+<div class="card"><h3>الإدارات</h3><div class="row"><label>اسم الإدارة<input id="odir_n"></label><label>الفرع<select id="odir_b">${eOpts(OB(),'',x=>x.name)}</select></label><button class="b y" onclick="orgAdd('dir')">إضافة إدارة</button></div>${tbl(['الإدارة','الفرع','الموظفون',''],OD().map(d=>[esc(d.name),esc(oN(d.br)),cntE('dir',d.id),ren(d.id)]))}</div>
+<div class="card"><h3>الأقسام</h3><div class="row"><label>اسم القسم<input id="odep_n"></label><label>الإدارة<select id="odep_d">${eOpts(OD(),'',x=>oN(x.br)+' / '+x.name)}</select></label><button class="b y" onclick="orgAdd('dep')">إضافة قسم</button></div>${tbl(['القسم','الإدارة','الموظفون',''],OP().map(d=>[esc(d.name),esc(oN(d.dir)),cntE('dep',d.id),ren(d.id)]))}</div>
+<div class="card"><h3>الهرم الوظيفي (المسميات والتبعية)</h3><div class="row"><label>المسمى الوظيفي<input id="ojob_n"></label><label>المستوى (1 = الأعلى)<input id="ojob_l" type="number" min="1" value="1" style="width:90px"></label><label>يتبع مسمى<select id="ojob_p">${eOpts(OJ(),'',x=>x.name)}</select></label><label>الدرجة<input id="ojob_g" style="width:110px"></label><button class="b y" onclick="orgAdd('job')">إضافة مسمى</button></div>${posTree()}</div>
+<div class="card"><h3>الهيكل الإداري (فروع ← إدارات ← أقسام)</h3>${adminTree()}</div>
+<div class="card" id="orgc"><div class="row np"><h3 style="margin:0">الهيكل التبعي (المدير المباشر)</h3><button class="b" onclick="prSel('#orgc','الهيكل التبعي للموظفين',0)">طباعة</button></div>${mgrTree()}<small>بتحدد المدير المباشر لكل موظف من ملفه.</small></div>`;
+H.file=()=>{
+  const e=db.emp.find(x=>x.id==hrE);
+  if(!e)return '<div class="card">افتح ملف موظف من تبويب الموظفون.</div>';
+  const code=empCode(e),D=db.hr.filter(x=>x.k=='edoc'&&x.eid==e.id);
+  return `<div class="card np"><button class="b" onclick="hrt='emp';go('hr')">رجوع للموظفين</button></div>
+  <div class="card"><div class="row" style="align-items:center">${e.photo?`<img src="${e.photo}" style="width:110px;height:130px;object-fit:cover;border-radius:8px;border:1px solid var(--b)">`:'<div style="width:110px;height:130px;border-radius:8px;background:#e4ebe9;display:flex;align-items:center;justify-content:center">لا توجد صورة</div>'}<div><h3>${esc(e.name)}</h3><div>${esc(e.job||'')} ${e.dept?'— '+esc(e.dept):''}</div><div>الكود: <b>${esc(code)}</b></div><svg id="ebc"></svg></div></div>
+  <div class="row np" style="margin-top:8px"><label>الصورة الشخصية<input type="file" accept="image/*" onchange="empPhoto(${e.id},this)"></label><button class="b y" onclick="printCards([${e.id}])">طباعة كارت الموظف</button></div></div>
+  ${EMS.map(sc=>`<div class="card"><h3>${sc[0]}</h3><div class="row">${sc[1].map(q=>`<label>${q[1]}${empInp(q,e)}</label>`).join('')}</div></div>`).join('')}
+  <div class="card np"><button class="b y" onclick="empSaveFile(${e.id})">حفظ ملف الموظف</button></div>
+  <div class="card"><h3>المستندات والمرفقات</h3><div class="row np"><label>النوع<select id="ed_t">${Object.keys(ET).map(k=>`<option value="${k}">${ET[k]}</option>`).join('')}</select></label><label>تاريخ الانتهاء (إن وجد)<input id="ed_x" type="date"></label><label>الملف (أي صيغة)<input id="ed_f" type="file"></label><button class="b y" onclick="empDocUp(${e.id})">رفع المستند</button></div>
+  ${tbl(['النوع','الملف','الصيغة','الحجم','تاريخ الرفع','الانتهاء',''],D.map(r=>[ET[r.type]||'',esc(r.name),esc(r.ext),Math.round(r.size/1024)+' ك.ب',r.d,r.exp?r.exp+' '+badge(dd(r.exp)):'',`<button class="b" onclick="empDocView(${r.id})">عرض</button> <button class="b d" onclick="empDocDel(${r.id})">حذف</button>`]))}</div>`;
+};
+
 /* ====== التقارير ====== */
 function rep(){
   const t=$('#rt').value,fr=$('#rf').value,to=$('#rto').value;let h='';
@@ -1333,7 +1446,7 @@ setup(){
   <button class="b y" onclick="expAll()">تصدير كل البيانات إلى Excel</button><p><small>حمّل النموذج واملأه ثم ارفعه كما هو. الصفوف الخاطئة تُتخطى ويظهر لك رقمها. تصدير التقارير من شاشة التقارير.</small></p></div>`;
 },
 hr(){
-  const T={emp:'الموظفون',att:'الحضور',lv:'الإجازات',ln:'السلف والمكافآت',pay:'الرواتب'};
+  const T={emp:'الموظفون',org:'الهيكل التنظيمي',att:'الحضور',lv:'الإجازات',ln:'السلف والمكافآت',pay:'الرواتب'};
   return `<div class="card np"><div class="row">${Object.keys(T).map(k=>`<button class="b ${k==hrt?'y':''}" onclick="hrt='${k}';go('hr')">${T[k]}</button>`).join('')}</div></div>`+H[hrt]();
 },
 cash(){
