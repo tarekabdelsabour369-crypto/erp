@@ -49,7 +49,7 @@ button.b.d{background:var(--r)}
 <button class="b" onclick="login()">دخول</button> <button class="b y" onclick="signup()">إنشاء حساب</button>
 </div>
 <div id="app" style="display:none">
-<header><b style="display:flex;align-items:center;gap:8px"><svg width="30" height="30" viewBox="0 0 48 48" aria-hidden="true"><rect width="48" height="48" rx="12" fill="#12353a"/><path d="M24 9v27M14 37h20M24 13l-11 4M24 13l11 4" stroke="#fff" stroke-width="2.4" stroke-linecap="round" fill="none"/><path d="M7 28l6-11 6 11a6 6 0 0 1-12 0zM29 28l6-11 6 11a6 6 0 0 1-12 0z" fill="#e0a030"/></svg> ميزان</b><span id="who"></span><button class="b y" onclick="sb.auth.signOut().then(()=>location.reload())">تسجيل الخروج</button></header>
+<header><b style="display:flex;align-items:center;gap:8px"><svg width="30" height="30" viewBox="0 0 48 48" aria-hidden="true"><rect width="48" height="48" rx="12" fill="#12353a"/><path d="M24 9v27M14 37h20M24 13l-11 4M24 13l11 4" stroke="#fff" stroke-width="2.4" stroke-linecap="round" fill="none"/><path d="M7 28l6-11 6 11a6 6 0 0 1-12 0zM29 28l6-11 6 11a6 6 0 0 1-12 0z" fill="#e0a030"/></svg> ميزان</b><span id="who"></span><button class="b y" id="bell" onclick="go('ntf')">🔔 <span id="nb">0</span></button><button class="b y" onclick="sb.auth.signOut().then(()=>location.reload())">تسجيل الخروج</button></header>
 <nav id="nav"></nav>
 <main id="main"></main>
 </div>
@@ -64,16 +64,16 @@ const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const f=n=>Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
 const r2=x=>Math.round(x*100)/100,today=()=>new Date().toISOString().slice(0,10);
-const M=['dash','find','pos','sales','purchases','cash','reps','rep','fleet','inventory','setup','hr','journal','reports','tax','edit','users'];
-const MN={dash:'الرئيسية',pos:'نقاط البيع',sales:'المبيعات',purchases:'المشتريات',cash:'الخزينة',reps:'إدارة المناديب',rep:'شاشة المندوب',fleet:'إدارة الأسطول',inventory:'المخازن',setup:'التهيئة',hr:'الموارد البشرية',edit:'تعديل البيانات',find:'بحث شامل',tax:'الضرائب',journal:'القيود',reports:'التقارير',users:'المستخدمون'};
+const M=['dash','ntf','find','pos','sales','purchases','cash','reps','rep','fleet','inventory','setup','hr','journal','reports','tax','edit','users'];
+const MN={dash:'الرئيسية',pos:'نقاط البيع',sales:'المبيعات',purchases:'المشتريات',cash:'الخزينة',reps:'إدارة المناديب',rep:'شاشة المندوب',fleet:'إدارة الأسطول',inventory:'المخازن',setup:'التهيئة',hr:'الموارد البشرية',edit:'تعديل البيانات',find:'بحث شامل',ntf:'الإشعارات',tax:'الضرائب',journal:'القيود',reports:'التقارير',users:'المستخدمون'};
 const ACC=[['1000','النقدية','A','cash'],['1010','مقبوضات البطاقات','A','bank'],['1020','المحافظ الإلكترونية','A','wallet'],['1100','العملاء','A',null,null,true],['1400','سلف الموظفين','A'],['1200','المخزون','A',null,null,true],['1300','ضريبة مدخلات','A'],['1320','ضرائب مخصومة لدى العملاء','A'],['2000','الموردون','L',null,null,true],['2100','ضريبة مخرجات','L'],['2110','ضريبة جدول مستحقة','L'],['2150','ضريبة خصم من المنبع مستحقة','L'],['2200','رواتب مستحقة','L'],['2300','تأمينات مستحقة','L'],['3000','رأس المال','E'],['3100','أرصدة افتتاحية','E'],['4000','إيرادات المبيعات','R'],['4100','إيرادات أخرى','R'],['5000','تكلفة البضاعة المباعة','X'],['5100','مصروفات عمومية','X'],['5200','الرواتب والأجور','X'],['5250','عمولات المناديب','X'],['5410','وقود وزيوت','X'],['5420','صيانة وقطع غيار المركبات','X'],['5430','مصروفات مركبات أخرى','X'],['5300','إيجار','X'],['5400','كهرباء ومياه واتصالات','X'],['5500','مواصلات وانتقالات','X'],['5600','صيانة ونظافة','X']];
 const PA={cash:'1000',card:'1010',wallet:'1020'};
-let lastInv=0,hrt='emp',attD=new Date().toISOString().slice(0,10),payM=new Date().toISOString().slice(0,7);
+let lastInv=0,hrt='dash',attD=new Date().toISOString().slice(0,10),payM=new Date().toISOString().slice(0,7);
 const TY={A:'أصل',L:'التزام',E:'حقوق ملكية',R:'إيراد',X:'مصروف'};
 const npf=b=>-ACC.filter(a=>'RX'.includes(a[2])).reduce((s,a)=>s+b[a[0]],0);
 const KEY='acc_db_v1';
 let db,me,cur='dash',cart=[],pcart=[],posc=[];
-const can=m=>me&&(m=='find'||(m=='edit'?!!me.is_admin:(me.is_admin||(me.perms||[]).includes(m))));
+const can=m=>me&&(m=='find'||m=='ntf'||(m=='edit'?!!me.is_admin:(me.is_admin||(me.perms||[]).includes(m))));
 const pn=id=>(db.products.find(p=>p.id==id)||{}).name||'؟';
 const tbl=(h,r)=>`<table><tr>${h.map(x=>`<th>${x}</th>`).join('')}</tr>${r.map(x=>`<tr>${x.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}</table>`;
 
@@ -106,10 +106,10 @@ async function enter(u){
   if(error||!p)return $('#le').textContent='تعذر تحميل الحساب. تأكد من تشغيل ملف setup.sql';
   me=p;
   const q=t=>sb.from(t).select('*');
-  const[a,b,c,d,e,pa,ac,shf,em,hh,iv]=await Promise.all([q('products'),q('invoices').order('id'),q('journal_entries').order('id'),q('settings'),q('profiles'),q('parties'),q('accounts'),q('shifts'),q('employees'),q('hr'),q('inv')]);
+  const[a,b,c,d,e,pa,ac,shf,em,hh,iv,nt]=await Promise.all([q('products'),q('invoices').order('id'),q('journal_entries').order('id'),q('settings'),q('profiles'),q('parties'),q('accounts'),q('shifts'),q('employees'),q('hr'),q('inv'),q('ntf')]);
   db={products:(a.data||[]).map(({ext,...x})=>({...x,...(ext||{}),price:+x.price,q:+x.q,cost:+x.cost})),inv:(b.data||[]).map(x=>x.data),je:(c.data||[]).map(x=>x.data),vat:14,profiles:e.data||[],parties:(pa.data||[]).map(x=>x.data),shifts:(shf.data||[]).map(x=>x.data),emp:(em.data||[]).map(x=>x.data),hr:(hh.data||[]).map(x=>x.data)};
   const IV=(iv.data||[]).map(x=>x.data);
-  Object.assign(db,{wh:[{id:'w0',name:'المخزن الرئيسي'},...IV.filter(x=>x.k=='wh').map(x=>({id:String(x.id),name:x.name}))],grp:IV.filter(x=>x.k=='grp'),loc:IV.filter(x=>x.k=='loc'),mvs:IV.filter(x=>x.k=='mv'),reps:IV.filter(x=>x.k=='rep'),visits:IV.filter(x=>x.k=='visit'),sds:IV.filter(x=>x.k=='sd'),fl:IV.filter(x=>FK.includes(x.k))});
+  Object.assign(db,{wh:[{id:'w0',name:'المخزن الرئيسي'},...IV.filter(x=>x.k=='wh').map(x=>({id:String(x.id),name:x.name}))],grp:IV.filter(x=>x.k=='grp'),loc:IV.filter(x=>x.k=='loc'),mvs:IV.filter(x=>x.k=='mv'),reps:IV.filter(x=>x.k=='rep'),visits:IV.filter(x=>x.k=='visit'),sds:IV.filter(x=>x.k=='sd'),fl:IV.filter(x=>FK.includes(x.k)),ntf:(nt.data||[]).map(x=>x.data)});
   const AC=ac.data||[];
   db.cc=AC.filter(x=>x.type=='CC').map(x=>({code:x.code,name:x.name}));
   AC.filter(x=>x.type!='CC').forEach(x=>{const o=ACC.find(y=>y[0]==x.code);if(o){o[4]=x.parent||o[4]||null}else ACC.push([x.code,x.name,x.type,x.kind||null,x.parent||null,!!x.ctl,!!x.hdr])});
@@ -124,7 +124,7 @@ async function boot(){
   if(data.session)await enter(data.session.user);
 }
 function go(m){
-  cur=m;
+  cur=m;try{nbUpd()}catch(e){}
   $('#nav').innerHTML=M.filter(can).map(x=>`<button class="${x==m?'on':''}" onclick="go('${x}')">${MN[x]}</button>`).join('');
   $('#main').innerHTML=(can(m)&&!['pos','dash','find'].includes(m)?'<div class="np"><input id="fq" placeholder="🔍 بحث في بيانات الشاشة..." oninput="fq()" style="width:100%;margin-bottom:10px"></div>':'')+(can(m)?V[m]():'<div class="card">لا تملك صلاحية لفتح هذه الشاشة. تواصل مع المدير.</div>');
   if(!can(m))return;
@@ -135,6 +135,7 @@ function go(m){
   if(m=='reps')repCharts();
   if(m=='fleet'&&flt=='dash')fleetCharts();
   if(m=='hr'&&hrt=='file')drawBc();
+  if(m=='hr'&&hrt=='dash')hrCharts();
 }
 
 /* ====== المحاسبة (قيد مزدوج) ====== */
@@ -465,7 +466,7 @@ function slip(id,m){
   pw(`<div class="c"><b>إيصال راتب ${m}</b><br>${esc(r.name)}</div><hr><table>${[['الأساسي',r.basic],['البدلات',r.allow],['مكافآت وعمولات',r.bonus],['خصم غياب',-r.abd],['خصم تأخير',-r.ltd],['إجازة بدون أجر',-r.upd],['جزاءات',-r.pen],['تأمينات',-r.ins],['قسط سلفة',-r.loan]].map(x=>`<tr><td>${x[0]}</td><td>${f(x[1])}</td></tr>`).join('')}<tr><td><b>الصافي</b></td><td><b>${f(r.net)}</b></td></tr></table>`);
 }
 const H={
-emp(){return `<div class="card"><h3>إضافة موظف</h3><div class="row"><label>الاسم<input id="en"></label><label>الوظيفة<input id="ej"></label><label>القسم<input id="ed"></label><label>تاريخ التعيين<input id="eh" type="date" value="${today()}"></label><label>الهاتف<input id="ep"></label><label>الرقم القومي<input id="ei"></label><label>الراتب الأساسي<input id="eb" type="number" step="0.01"></label><label>البدلات<input id="ea" type="number" step="0.01" value="0"></label><label>خصم التأمينات %<input id="es" type="number" step="0.01" value="0" style="width:90px"></label><button class="b y" onclick="addEmp()">إضافة</button></div></div>
+emp(){return `<div class="card np"><div class="row"><button class="b y" onclick="openNew()">➕ إضافة موظف</button><button class="b" onclick="empXlOut()">تصدير الموظفين إلى Excel</button><label class="b" style="display:inline-block;cursor:pointer">استيراد من Excel<input type="file" accept=".xlsx,.xls,.csv" style="display:none" onchange="empXlIn(event)"></label><button class="b" onclick="empTpl()">نموذج Excel فارغ</button></div><small>التصدير بيطلّع كل بيانات الموظفين. عدّل في الملف وارجع ارفعه، والموظفين الجدد (من غير كود) بيتضافوا والباقي بيتعدل.</small></div>
 <div class="card"><div class="row np"><button class="b" onclick="printCards(db.emp.filter(e=>e.status=='active').map(e=>e.id))">طباعة كروت الموظفين النشطين</button></div>${tbl(['الاسم','الوظيفة','القسم','التعيين','الأساسي','البدلات','الحالة',''],db.emp.map((e,i)=>[(e.photo?`<img src="${e.photo}" style="width:28px;height:28px;border-radius:50%;object-fit:cover;vertical-align:middle">`:'')+' '+esc(e.name)+(e.code?' <small>'+esc(e.code)+'</small>':''),esc(e.job),esc(e.dept),e.hire,f(e.basic),f(e.allow),`<select onchange="empSt(${i},this.value)">${Object.keys(ST).map(k=>`<option value="${k}" ${e.status==k?'selected':''}>${ST[k]}</option>`).join('')}</select>`,`<button class="b y" onclick="openEmp(${e.id})">ملف الموظف</button> <button class="b" onclick="empSal(${i})">تعديل الراتب</button>`]))}</div>`},
 att(){const rec=e=>db.hr.find(x=>x.k=='att'&&x.eid==e.id&&x.d==attD)||{};
 return `<div class="card"><h3>الحضور والانصراف</h3><div class="row"><label>التاريخ<input type="date" value="${attD}" onchange="attD=this.value;go('hr')"></label><button class="b y" onclick="saveAtt()">حفظ الحضور</button></div>${tbl(['الموظف','الحالة','دقائق التأخير'],db.emp.filter(e=>e.status=='active').map(e=>{const r=rec(e);return[esc(e.name),`<select class="as" data-e="${e.id}">${[['p','حاضر'],['a','غائب'],['v','إجازة']].map(o=>`<option value="${o[0]}" ${(r.st||'p')==o[0]?'selected':''}>${o[1]}</option>`).join('')}</select>`,`<input type="number" class="al" data-e="${e.id}" min="0" value="${r.late||0}" style="width:80px">`]}))}</div>`},
@@ -773,7 +774,7 @@ function rColSave(pid){
 
 /* ====== تعديل البيانات (للمدير) ====== */
 let edT='acc';
-const MU=M.filter(m=>m!='edit'&&m!='find'),SYS=['1000','1010','1020','1100','1200','1300','1400','2000','2100','2200','2300','3000','3100','4000','5000','5100','5200','5250','1320','2110','2150'];
+const MU=M.filter(m=>m!='edit'&&m!='find'&&m!='ntf'),SYS=['1000','1010','1020','1100','1200','1300','1400','2000','2100','2200','2300','3000','3100','4000','5000','5100','5200','5250','1320','2110','2150'];
 const EF={
  acc:[['name','الاسم','t'],['type','النوع','s',TY],['kind','نوع الخزينة','s',{'':'ليس خزينة',cash:'خزنة',bank:'بنك',wallet:'محفظة'}],['parent','الحساب الأب','par'],['ctl','حساب مراقبة','b'],['hdr','حساب تجميعي','b']],
  cc:[['name','الاسم','t']],
@@ -1221,13 +1222,13 @@ function expRep(all){
 }
 
 /* ====== ملف الموظف والهيكل التنظيمي ====== */
-let hrE=null;
+let hrE=null,hrNew=null;
 const OB=()=>db.hr.filter(x=>x.k=='br'),OD=()=>db.hr.filter(x=>x.k=='dir'),OP=()=>db.hr.filter(x=>x.k=='dep'),OJ=()=>db.hr.filter(x=>x.k=='job'),oN=id=>(db.hr.find(x=>x.id==id)||{}).name||'';
 const ET={idc:'بطاقة الرقم القومي',lic:'رخصة',edu:'شهادة مؤهل',con:'عقد عمل',crm:'فيش وتشبيه',bir:'شهادة ميلاد',mil:'موقف التجنيد',ins:'مستند تأميني',med:'شهادة طبية',oth:'أخرى'};
 const EMS=[
  ['بيانات شخصية',[['name','الاسم بالعربي','t'],['nameEn','الاسم بالإنجليزي','t'],['gender','النوع','s',{m:'ذكر',f:'أنثى'}],['birth','تاريخ الميلاد','d'],['birthPlace','محل الميلاد','t'],['nat','الجنسية','t'],['marital','الحالة الاجتماعية','s',{single:'أعزب',married:'متزوج',div:'مطلق',wid:'أرمل'}],['kids','عدد الأبناء','n'],['natid','الرقم القومي','t'],['idExp','انتهاء البطاقة','d'],['blood','فصيلة الدم','t'],['edu','المؤهل الدراسي','t'],['major','التخصص','t'],['mil','الموقف من التجنيد','s',{na:'غير مطلوب',done:'أدى الخدمة',exempt:'معفى',post:'مؤجل'}]]],
  ['بيانات الاتصال',[['phone','الهاتف','t'],['phone2','هاتف بديل','t'],['email','البريد الإلكتروني','t'],['gov','المحافظة','t'],['addr','العنوان','t'],['emName','اسم جهة الطوارئ','t'],['emPhone','هاتف الطوارئ','t'],['emRel','صلة القرابة','t']]],
- ['البيانات الوظيفية',[['hire','تاريخ التعيين','d'],['ctype','نوع التعاقد','s',{perm:'دائم',temp:'مؤقت',part:'جزئي',trial:'تحت التجربة',proj:'مشروع'}],['trialEnd','انتهاء فترة التجربة','d'],['contEnd','انتهاء العقد','d'],['grade','الدرجة الوظيفية','t'],['loc','مكان العمل','t'],['br','الفرع','ob'],['dir','الإدارة','od'],['dep','القسم','op'],['pos','المسمى الوظيفي (من الهرم الوظيفي)','oj'],['mgr','المدير المباشر','em'],['status','الحالة','s',ST]]],
+ ['البيانات الوظيفية',[['hire','تاريخ التعيين','d'],['ctype','نوع التعاقد','s',{perm:'دائم',temp:'مؤقت',part:'جزئي',trial:'تحت التجربة',proj:'مشروع'}],['trialEnd','انتهاء فترة التجربة','d'],['contEnd','انتهاء العقد','d'],['grade','الدرجة الوظيفية','t'],['loc','مكان العمل','t'],['br','الفرع','ob'],['dir','الإدارة','od'],['dep','القسم','op'],['pos','المسمى الوظيفي (من الهرم الوظيفي)','oj'],['mgr','المدير المباشر','em'],['uid','حساب المستخدم (لاستلام الإشعارات)','us'],['status','الحالة','s',ST]]],
  ['البيانات المالية والتأمينية',[['basic','الراتب الأساسي','n'],['allow','البدلات','n'],['insp','نسبة خصم التأمينات %','n'],['insNo','الرقم التأميني','t'],['insDate','تاريخ بدء التأمين','d'],['payMode','طريقة الصرف','s',{cash:'نقدي',bank:'تحويل بنكي'}],['bank','البنك','t'],['acct','رقم الحساب أو IBAN','t']]]
 ];
 const eOpts=(L,v,lab)=>'<option value="">—</option>'+L.map(x=>`<option value="${x.id}" ${x.id==v?'selected':''}>${esc(lab(x))}</option>`).join('');
@@ -1239,28 +1240,41 @@ function empInp(q,e){
   if(t=='op')return `<select id="${id}">${eOpts(OP(),v,x=>oN(x.dir)+' / '+x.name)}</select>`;
   if(t=='oj')return `<select id="${id}">${eOpts(OJ(),v,x=>x.name)}</select>`;
   if(t=='em')return `<select id="${id}">${eOpts(db.emp.filter(y=>y.id!=e.id),v,x=>x.name)}</select>`;
+  if(t=='us')return `<select id="${id}"><option value="">—</option>${db.profiles.map(u=>`<option value="${u.id}" ${u.id==v?'selected':''}>${esc(u.name||u.email)}</option>`).join('')}</select>`;
   return `<input id="${id}" type="${t=='n'?'number':t=='d'?'date':'text'}" ${t=='n'?'step="0.01"':''} value="${esc(v)}">`;
 }
 function empCode(e){
-  if(!e.code){let n=db.emp.length;do{n++}while(db.emp.some(x=>x.code=='E'+String(n).padStart(4,'0')));e.code='E'+String(n).padStart(4,'0');put('employees',e)}
+  if(!e.code){const n=Math.max(0,...db.emp.map(x=>/^E\d+$/.test(x.code||'')?+x.code.slice(1):0))+1;e.code='E'+String(n).padStart(4,'0');put('employees',e)}
   return e.code;
 }
 function openEmp(id){hrE=id;hrt='file';go('hr')}
 function drawBc(){const e=db.emp.find(x=>x.id==hrE),el=$('#ebc');if(e&&el&&window.JsBarcode)JsBarcode(el,empCode(e),{format:'CODE128',height:46,width:1.6,displayValue:true,fontSize:13,margin:2})}
 function bcSvg(code){if(!window.JsBarcode)return esc(code);const sv=document.createElementNS('http://www.w3.org/2000/svg','svg');JsBarcode(sv,code,{format:'CODE128',height:44,width:1.6,displayValue:true,fontSize:12,margin:0});return sv.outerHTML}
 function empSaveFile(id){
-  const e=db.emp.find(x=>x.id==id),v={};
-  for(const sc of EMS)for(const q of sc[1]){const el=$('#ef2_'+q[0]);v[q[0]]=q[2]=='n'?(+el.value||0):['ob','od','op','oj','em'].includes(q[2])?(+el.value||null):el.value.trim()}
+  const isNew=!db.emp.some(x=>x.id==id),e=isNew?hrNew:db.emp.find(x=>x.id==id),v={};
+  for(const sc of EMS)for(const q of sc[1]){const el=$('#ef2_'+q[0]);v[q[0]]=q[2]=='n'?(+el.value||0):['ob','od','op','oj','em'].includes(q[2])?(+el.value||null):q[2]=='us'?(el.value||null):el.value.trim()}
   if(!v.name)return alert('الاسم مطلوب');
   if(!(v.basic>0))return alert('الراتب الأساسي مطلوب');
   let n=0;for(let x=db.emp.find(y=>y.id==v.mgr);x&&n<100;x=db.emp.find(y=>y.id==x.mgr),n++)if(x.id==id)return alert('المدير المباشر المختار يعمل حلقة في الهيكل التبعي');
   Object.assign(e,v);if(v.pos)e.job=oN(v.pos);if(v.dep)e.dept=oN(v.dep);
+  if(isNew){
+    e.status=e.status||'active';db.emp.push(e);empCode(e);put('employees',e);
+    const rc=ntfNew([e]);hrNew=null;hrt='emp';
+    alert('تمت إضافة الموظف '+e.name+' (كود '+e.code+')'+(rc.length?'\nتم إرسال إشعار إلى: '+rc.join('، '):'\nتم تسجيل إشعار لمستخدمي الموارد البشرية (مفيش رئيس مرتبط بحساب مستخدم)'));
+    return go('hr');
+  }
   put('employees',e);alert('تم حفظ ملف الموظف');go('hr');
 }
+function openNew(){hrNew={id:nid()};hrE=hrNew.id;hrt='file';go('hr')}
 function empPhoto(id,inp){
   const f=inp.files[0];if(!f)return;
   const img=new Image(),u=URL.createObjectURL(f);
-  img.onload=()=>{const c=document.createElement('canvas'),r=Math.min(1,300/Math.max(img.width,img.height));c.width=img.width*r;c.height=img.height*r;c.getContext('2d').drawImage(img,0,0,c.width,c.height);const e=db.emp.find(x=>x.id==id);e.photo=c.toDataURL('image/jpeg',.82);put('employees',e);URL.revokeObjectURL(u);go('hr')};
+  img.onload=()=>{
+    const c=document.createElement('canvas'),r=Math.min(1,300/Math.max(img.width,img.height));c.width=img.width*r;c.height=img.height*r;c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+    const e=db.emp.find(x=>x.id==id)||hrNew;e.photo=c.toDataURL('image/jpeg',.82);
+    if(db.emp.includes(e))put('employees',e);
+    const im=$('#phimg');if(im)im.src=e.photo;URL.revokeObjectURL(u);
+  };
   img.onerror=()=>alert('الملف ده مش صورة صالحة');
   img.src=u;
 }
@@ -1292,8 +1306,8 @@ function orgAdd(k){
   const g=id=>$('#'+id),n=g('o'+k+'_n').value.trim();if(!n)return alert('أدخل الاسم');
   const r={id:nid(),k,name:n};
   if(k=='br')r.addr=g('obr_a').value.trim();
-  if(k=='dir')r.br=+g('odir_b').value||null;
-  if(k=='dep')r.dir=+g('odep_d').value||null;
+  if(k=='dir'){r.br=+g('odir_b').value||null;r.head=+g('odir_h').value||null}
+  if(k=='dep'){r.dir=+g('odep_d').value||null;r.head=+g('odep_h').value||null}
   if(k=='job'){r.level=+g('ojob_l').value||1;r.parent=+g('ojob_p').value||null;r.grade=g('ojob_g').value.trim()}
   db.hr.push(r);put('hr',r);go('hr');
 }
@@ -1312,22 +1326,140 @@ function adminTree(){
   return `<ul class="tr">${OB().map(b=>`<li><b>🏢 ${esc(b.name)}</b> <small>(${cntE('br',b.id)} موظف)</small><ul class="tr">${OD().filter(d=>d.br==b.id).map(d=>`<li><b>${esc(d.name)}</b> <small>(${cntE('dir',d.id)})</small><ul class="tr">${OP().filter(x=>x.dir==d.id).map(x=>`<li>${esc(x.name)} <small>(${cntE('dep',x.id)})</small></li>`).join('')}</ul></li>`).join('')}</ul></li>`).join('')}</ul>`;
 }
 H.org=()=>`<div class="card"><h3>الفروع</h3><div class="row"><label>اسم الفرع<input id="obr_n"></label><label>العنوان<input id="obr_a"></label><button class="b y" onclick="orgAdd('br')">إضافة فرع</button></div>${tbl(['الفرع','العنوان','الموظفون',''],OB().map(b=>[esc(b.name),esc(b.addr||''),cntE('br',b.id),ren(b.id)]))}</div>
-<div class="card"><h3>الإدارات</h3><div class="row"><label>اسم الإدارة<input id="odir_n"></label><label>الفرع<select id="odir_b">${eOpts(OB(),'',x=>x.name)}</select></label><button class="b y" onclick="orgAdd('dir')">إضافة إدارة</button></div>${tbl(['الإدارة','الفرع','الموظفون',''],OD().map(d=>[esc(d.name),esc(oN(d.br)),cntE('dir',d.id),ren(d.id)]))}</div>
-<div class="card"><h3>الأقسام</h3><div class="row"><label>اسم القسم<input id="odep_n"></label><label>الإدارة<select id="odep_d">${eOpts(OD(),'',x=>oN(x.br)+' / '+x.name)}</select></label><button class="b y" onclick="orgAdd('dep')">إضافة قسم</button></div>${tbl(['القسم','الإدارة','الموظفون',''],OP().map(d=>[esc(d.name),esc(oN(d.dir)),cntE('dep',d.id),ren(d.id)]))}</div>
+<div class="card"><h3>الإدارات</h3><div class="row"><label>اسم الإدارة<input id="odir_n"></label><label>الفرع<select id="odir_b">${eOpts(OB(),'',x=>x.name)}</select></label><label>رئيس الإدارة<select id="odir_h">${eOpts(db.emp,'',x=>x.name)}</select></label><button class="b y" onclick="orgAdd('dir')">إضافة إدارة</button></div>${tbl(['الإدارة','الفرع','الرئيس','الموظفون',''],OD().map(d=>[esc(d.name),esc(oN(d.br)),hsel(d),cntE('dir',d.id),ren(d.id)]))}</div>
+<div class="card"><h3>الأقسام</h3><div class="row"><label>اسم القسم<input id="odep_n"></label><label>الإدارة<select id="odep_d">${eOpts(OD(),'',x=>oN(x.br)+' / '+x.name)}</select></label><label>رئيس القسم<select id="odep_h">${eOpts(db.emp,'',x=>x.name)}</select></label><button class="b y" onclick="orgAdd('dep')">إضافة قسم</button></div>${tbl(['القسم','الإدارة','الرئيس','الموظفون',''],OP().map(d=>[esc(d.name),esc(oN(d.dir)),hsel(d),cntE('dep',d.id),ren(d.id)]))}</div>
 <div class="card"><h3>الهرم الوظيفي (المسميات والتبعية)</h3><div class="row"><label>المسمى الوظيفي<input id="ojob_n"></label><label>المستوى (1 = الأعلى)<input id="ojob_l" type="number" min="1" value="1" style="width:90px"></label><label>يتبع مسمى<select id="ojob_p">${eOpts(OJ(),'',x=>x.name)}</select></label><label>الدرجة<input id="ojob_g" style="width:110px"></label><button class="b y" onclick="orgAdd('job')">إضافة مسمى</button></div>${posTree()}</div>
 <div class="card"><h3>الهيكل الإداري (فروع ← إدارات ← أقسام)</h3>${adminTree()}</div>
 <div class="card" id="orgc"><div class="row np"><h3 style="margin:0">الهيكل التبعي (المدير المباشر)</h3><button class="b" onclick="prSel('#orgc','الهيكل التبعي للموظفين',0)">طباعة</button></div>${mgrTree()}<small>بتحدد المدير المباشر لكل موظف من ملفه.</small></div>`;
 H.file=()=>{
-  const e=db.emp.find(x=>x.id==hrE);
+  const isNew=!db.emp.some(x=>x.id==hrE),e=isNew?(hrNew&&hrNew.id==hrE?hrNew:null):db.emp.find(x=>x.id==hrE);
   if(!e)return '<div class="card">افتح ملف موظف من تبويب الموظفون.</div>';
-  const code=empCode(e),D=db.hr.filter(x=>x.k=='edoc'&&x.eid==e.id);
-  return `<div class="card np"><button class="b" onclick="hrt='emp';go('hr')">رجوع للموظفين</button></div>
-  <div class="card"><div class="row" style="align-items:center">${e.photo?`<img src="${e.photo}" style="width:110px;height:130px;object-fit:cover;border-radius:8px;border:1px solid var(--b)">`:'<div style="width:110px;height:130px;border-radius:8px;background:#e4ebe9;display:flex;align-items:center;justify-content:center">لا توجد صورة</div>'}<div><h3>${esc(e.name)}</h3><div>${esc(e.job||'')} ${e.dept?'— '+esc(e.dept):''}</div><div>الكود: <b>${esc(code)}</b></div><svg id="ebc"></svg></div></div>
-  <div class="row np" style="margin-top:8px"><label>الصورة الشخصية<input type="file" accept="image/*" onchange="empPhoto(${e.id},this)"></label><button class="b y" onclick="printCards([${e.id}])">طباعة كارت الموظف</button></div></div>
+  const code=isNew?'سيتولد بعد الإضافة':empCode(e),D=isNew?[]:db.hr.filter(x=>x.k=='edoc'&&x.eid==e.id);
+  return `<div class="card np"><button class="b" onclick="hrNew=null;hrt='emp';go('hr')">رجوع للموظفين</button></div>
+  <div class="card"><div class="row" style="align-items:center"><img id="phimg" ${e.photo?`src="${e.photo}"`:''} alt="" style="width:110px;height:130px;object-fit:cover;border-radius:8px;border:1px solid var(--b);background:#e4ebe9"><div><h3>${isNew?'موظف جديد':esc(e.name)}</h3><div>${esc(e.job||'')} ${e.dept?'— '+esc(e.dept):''}</div><div>الكود: <b>${esc(code)}</b></div>${isNew?'':'<svg id="ebc"></svg>'}</div></div>
+  <div class="row np" style="margin-top:8px"><label>الصورة الشخصية<input type="file" accept="image/*" onchange="empPhoto(${e.id},this)"></label>${isNew?'':`<button class="b y" onclick="printCards([${e.id}])">طباعة كارت الموظف</button>`}</div></div>
   ${EMS.map(sc=>`<div class="card"><h3>${sc[0]}</h3><div class="row">${sc[1].map(q=>`<label>${q[1]}${empInp(q,e)}</label>`).join('')}</div></div>`).join('')}
-  <div class="card np"><button class="b y" onclick="empSaveFile(${e.id})">حفظ ملف الموظف</button></div>
-  <div class="card"><h3>المستندات والمرفقات</h3><div class="row np"><label>النوع<select id="ed_t">${Object.keys(ET).map(k=>`<option value="${k}">${ET[k]}</option>`).join('')}</select></label><label>تاريخ الانتهاء (إن وجد)<input id="ed_x" type="date"></label><label>الملف (أي صيغة)<input id="ed_f" type="file"></label><button class="b y" onclick="empDocUp(${e.id})">رفع المستند</button></div>
-  ${tbl(['النوع','الملف','الصيغة','الحجم','تاريخ الرفع','الانتهاء',''],D.map(r=>[ET[r.type]||'',esc(r.name),esc(r.ext),Math.round(r.size/1024)+' ك.ب',r.d,r.exp?r.exp+' '+badge(dd(r.exp)):'',`<button class="b" onclick="empDocView(${r.id})">عرض</button> <button class="b d" onclick="empDocDel(${r.id})">حذف</button>`]))}</div>`;
+  <div class="card np"><button class="b y" onclick="empSaveFile(${e.id})">${isNew?'إضافة الموظف':'حفظ ملف الموظف'}</button></div>
+  ${isNew?'<div class="card">المستندات المرفقة بتترفع بعد إضافة الموظف من ملفه.</div>':`<div class="card"><h3>المستندات والمرفقات</h3><div class="row np"><label>النوع<select id="ed_t">${Object.keys(ET).map(k=>`<option value="${k}">${ET[k]}</option>`).join('')}</select></label><label>تاريخ الانتهاء (إن وجد)<input id="ed_x" type="date"></label><label>الملف (أي صيغة)<input id="ed_f" type="file"></label><button class="b y" onclick="empDocUp(${e.id})">رفع المستند</button></div>
+  ${tbl(['النوع','الملف','الصيغة','الحجم','تاريخ الرفع','الانتهاء',''],D.map(r=>[ET[r.type]||'',esc(r.name),esc(r.ext),Math.round(r.size/1024)+' ك.ب',r.d,r.exp?r.exp+' '+badge(dd(r.exp)):'',`<button class="b" onclick="empDocView(${r.id})">عرض</button> <button class="b d" onclick="empDocDel(${r.id})">حذف</button>`]))}</div>`}`;
+};
+
+/* ====== لوحة الموارد البشرية والإشعارات واستيراد وتصدير الموظفين ====== */
+const hsel=d=>`<select onchange="orgHead(${d.id},this.value)">${eOpts(db.emp,d.head,x=>x.name)}</select>`;
+function orgHead(id,v){const r=db.hr.find(x=>x.id==id);r.head=+v||null;put('hr',r)}
+const myNtf=()=>(db.ntf||[]).filter(n=>n.uid?n.uid==me.id:can('hr'));
+const nbUpd=()=>{const el=$('#nb');if(el)el.textContent=myNtf().filter(n=>!n.seen).length};
+function ntfSeen(id){const n=db.ntf.find(x=>x.id==id);n.seen=true;sb.from('ntf').update({data:n}).eq('id',id).then(r=>{if(r.error)alert(r.error.message)});go('ntf')}
+function ntfNew(L){
+  const G={},names=[];
+  L.forEach(e=>{const k=e.dep||e.dir||e.br||0;(G[k]=G[k]||[]).push(e)});
+  Object.keys(G).forEach(k=>{
+    const es=G[k],e0=es[0],dep=db.hr.find(x=>x.id==e0.dep),dirId=e0.dir||(dep&&dep.dir),dir=db.hr.find(x=>x.id==dirId);
+    const heads=[dep&&dep.head,dir&&dir.head,...es.map(e=>e.mgr)].filter(Boolean),us=[...new Set(heads.map(h=>(db.emp.find(x=>x.id==h)||{}).uid).filter(Boolean))];
+    const org=[oN(e0.br),oN(dirId),oN(e0.dep)].filter(Boolean).join(' / ')||'المنشأة',msg=(es.length==1?'تم إضافة موظف جديد: ':'تم إضافة '+es.length+' موظفين جدد: ')+es.slice(0,10).map(e=>e.name).join('، ')+' — '+org;
+    (us.length?us:[null]).forEach(u=>{const r={id:nid(),k:'ntf',uid:u,msg,d:today(),by:me.name||me.email,seen:false};db.ntf.push(r);put('ntf',r)});
+    heads.forEach(h=>{const x=db.emp.find(y=>y.id==h);if(x&&x.uid&&!names.includes(x.name))names.push(x.name)});
+  });
+  nbUpd();return names;
+}
+const H1=key=>EMS.flatMap(sc=>sc[1]).find(q=>q[0]==key)[1];
+function empRow(e){
+  const r={'كود الموظف':empCode(e)};
+  EMS.forEach(sc=>sc[1].forEach(q=>{
+    if(q[2]=='us')return;
+    let v=e[q[0]]??'';
+    if(q[2]=='s')v=q[3][v]||'';
+    if(['ob','od','op','oj'].includes(q[2]))v=oN(v);
+    if(q[2]=='em'){const m=db.emp.find(x=>x.id==v);v=m?empCode(m):''}
+    r[q[1]]=v;
+  }));
+  return r;
+}
+function empXlOut(){
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.emp.map(empRow)),'الموظفون');
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['تعليمات الاستيراد'],['كود الموظف: لو فاضي بيتم إنشاء موظف جديد، ولو موجود بيتم تعديل بياناته.'],['الخلية الفاضية لموظف موجود معناها عدم تغيير القيمة.'],['الفرع والإدارة والقسم والمسمى الوظيفي بالاسم، وأي اسم جديد بيتم إنشاؤه تلقائيًا.'],['المدير المباشر بكود الموظف أو بالاسم.'],['التواريخ بصيغة YYYY-MM-DD، والنوع والحالة بالكلمات الظاهرة في الملف.'],['الاسم بالعربي والراتب الأساسي إجباريين للموظف الجديد.']]),'تعليمات');
+  xl(wb,'الموظفون');
+}
+function empTpl(){
+  const r={'كود الموظف':''};EMS.forEach(sc=>sc[1].forEach(q=>{if(q[2]!='us')r[q[1]]=''}));
+  r[H1('name')]='أحمد علي';r[H1('basic')]=5000;r[H1('hire')]=today();r[H1('br')]='الفرع الرئيسي';r[H1('dir')]='الإدارة المالية';r[H1('dep')]='الحسابات';r[H1('pos')]='محاسب';
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet([r]),'الموظفون');xl(wb,'نموذج-الموظفين');
+}
+async function empXlIn(ev){
+  const file=ev.target.files[0];if(!file)return;
+  let rows;
+  try{const wb=XLSX.read(await file.arrayBuffer());rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''})}catch(e){return alert('تعذر قراءة الملف')}
+  if(!rows.length||!(H1('name') in rows[0]))return alert('الملف لا يطابق النموذج. صدّر الموظفين أو حمّل النموذج واستخدمه كما هو.');
+  if(!confirm('معالجة '+rows.length+' صف؟ الجدد بيتضافوا والموجودين بيتعدلوا.'))return;
+  const sx=v=>String(v).trim(),upO=[],newE=[],touched=[],pend=[],er=[];let up=0;
+  const getOrg=(k,name,extra)=>{
+    if(!name)return null;
+    let o=db.hr.find(x=>x.k==k&&x.name==name&&Object.keys(extra).every(z=>x[z]==extra[z]));
+    if(!o){o={id:nid(),k,name,...extra};db.hr.push(o);upO.push(o)}
+    return o.id;
+  };
+  rows.forEach((r,i)=>{
+    try{
+      const code=sx(r['كود الموظف']),ex=code?db.emp.find(e=>e.code==code):null;
+      if(code&&!ex)throw 0;
+      const e=ex||{id:nid(),status:'active'},v={};
+      for(const sc of EMS)for(const q of sc[1]){
+        if(q[2]=='us'||['ob','od','op','oj','em'].includes(q[2]))continue;
+        const c=r[q[1]];if(c===undefined||c==='')continue;
+        if(q[2]=='n')v[q[0]]=+c||0;
+        else if(q[2]=='d')v[q[0]]=xd(c);
+        else if(q[2]=='s'){const k=Object.keys(q[3]).find(z=>q[3][z]==sx(c)||z==sx(c));if(k)v[q[0]]=k}
+        else v[q[0]]=sx(c);
+      }
+      if(!ex&&(!v.name||!(v.basic>0)))throw 0;
+      const bn=sx(r[H1('br')]),dn=sx(r[H1('dir')]),pn=sx(r[H1('dep')]),jn=sx(r[H1('pos')]);
+      const bi=getOrg('br',bn,{}),di=getOrg('dir',dn,bi?{br:bi}:{}),pi=getOrg('dep',pn,di?{dir:di}:{}),ji=getOrg('job',jn,{});
+      Object.assign(e,v);
+      if(bi)e.br=bi;if(di)e.dir=di;if(pi){e.dep=pi;e.dept=pn}if(ji){e.pos=ji;e.job=jn}
+      if(!ex){db.emp.push(e);empCode(e);newE.push(e)}else up++;
+      touched.push(e);pend.push([e,sx(r[H1('mgr')])]);
+    }catch(x){er.push(i+2)}
+  });
+  pend.forEach(([e,m])=>{if(!m)return;const t=db.emp.find(x=>x.code==m)||db.emp.find(x=>x.name==m);if(t&&t.id!=e.id)e.mgr=t.id});
+  if(touched.length)await sb.from('employees').upsert(touched.map(e=>({id:e.id,data:e}))).then(r=>{if(r.error)alert(r.error.message)});
+  if(upO.length)await sb.from('hr').upsert(upO.map(o=>({id:o.id,data:o}))).then(r=>{if(r.error)alert(r.error.message)});
+  const rc=newE.length?ntfNew(newE):[];
+  ev.target.value='';
+  alert('تم: إضافة '+newE.length+' موظف جديد وتعديل '+up+' موظف'+(rc.length?'\nإشعارات اتبعتت إلى: '+rc.join('، '):'')+(er.length?'\nصفوف تم تخطيها (أرقامها في الملف): '+er.slice(0,30).join('، '):''));
+  go('hr');
+}
+function hrCharts(){
+  if(!window.Chart)return;
+  chs.forEach(c=>c.destroy());chs=[];
+  Chart.defaults.font.family="'IBM Plex Sans Arabic',Tahoma,sans-serif";
+  const C=['#12353a','#e0a030','#3fa796','#e76f51','#4a90d9','#8e6bbf','#5aa469'],E=db.emp.filter(e=>e.status=='active'),
+  lg={legend:{rtl:true,textDirection:'rtl',labels:{usePointStyle:true,padding:14}}},
+  mk=(id,cfg,has)=>{const el=$('#'+id);if(!el)return;if(!has){el.parentNode.innerHTML='<p style="text-align:center;color:#778;padding-top:90px">لا توجد بيانات بعد</p>';return}chs.push(new Chart(el,{...cfg,options:{responsive:true,maintainAspectRatio:false,...(cfg.options||{})}}))},
+  grp=nm=>{const m={};E.forEach(e=>{const k=nm(e)||'غير محدد';m[k]=(m[k]||0)+1});return[Object.keys(m),Object.values(m)]};
+  let[l,d]=grp(e=>oN(e.dir)||e.dept);
+  mk('hc1',{type:'bar',data:{labels:l,datasets:[{label:'عدد الموظفين',data:d,backgroundColor:C,borderRadius:8}]},options:{plugins:{legend:{display:false}}}},E.length>0);
+  [l,d]=grp(e=>oN(e.br));
+  mk('hc2',{type:'doughnut',data:{labels:l,datasets:[{data:d,backgroundColor:C,borderWidth:3,borderColor:'#fff'}]},options:{cutout:'60%',plugins:lg}},E.length>0);
+  [l,d]=grp(e=>({m:'ذكر',f:'أنثى'}[e.gender]));
+  mk('hc3',{type:'pie',data:{labels:l,datasets:[{data:d,backgroundColor:C.slice().reverse(),borderWidth:3,borderColor:'#fff'}]},options:{plugins:lg}},E.length>0);
+  [l,d]=grp(e=>({perm:'دائم',temp:'مؤقت',part:'جزئي',trial:'تحت التجربة',proj:'مشروع'}[e.ctype]));
+  mk('hc4',{type:'bar',data:{labels:l,datasets:[{label:'عدد الموظفين',data:d,backgroundColor:C[2],borderRadius:8}]},options:{plugins:{legend:{display:false}}}},E.length>0);
+  [l,d]=grp(e=>{if(!e.hire)return '';const y=(Date.now()-new Date(e.hire))/31557600000;return y<1?'أقل من سنة':y<3?'1 إلى 3 سنوات':y<5?'3 إلى 5 سنوات':y<10?'5 إلى 10 سنوات':'أكثر من 10'});
+  mk('hc5',{type:'bar',data:{labels:l,datasets:[{label:'عدد الموظفين',data:d,backgroundColor:C[4],borderRadius:8}]},options:{plugins:{legend:{display:false}}}},E.length>0);
+  const now=new Date(),ms=[...Array(12)].map((_,i)=>ymd(new Date(now.getFullYear(),now.getMonth()-11+i,1)).slice(0,7));
+  mk('hc6',{type:'line',data:{labels:ms.map(m=>new Date(m+'-15').toLocaleDateString('ar-EG',{month:'short'})),datasets:[{label:'التعيينات',data:ms.map(m=>db.emp.filter(e=>(e.hire||'').startsWith(m)).length),borderColor:C[1],backgroundColor:'rgba(224,160,48,.2)',fill:true,tension:.3,borderWidth:3,pointRadius:3}]},options:{plugins:lg}},db.emp.some(e=>e.hire));
+}
+H.dash=()=>{
+  const E=db.emp.filter(e=>e.status=='active'),m=today().slice(0,7),sal=r2(E.reduce((s,e)=>s+(e.basic||0)+(e.allow||0),0)),A=[];
+  E.forEach(e=>[['contEnd','انتهاء العقد'],['trialEnd','انتهاء فترة التجربة'],['idExp','انتهاء البطاقة']].forEach(([k,lb])=>{const n=dd(e[k]);if(n!==null&&n<=30)A.push([esc(e.name),lb,e[k],badge(n)])}));
+  db.hr.filter(x=>x.k=='edoc'&&x.exp).forEach(x=>{const n=dd(x.exp);if(n!==null&&n<=30)A.push([esc((db.emp.find(e=>e.id==x.eid)||{}).name||''),'مستند: '+(ET[x.type]||''),x.exp,badge(n)])});
+  return `<div class="grid">${[['الموظفون النشطون',E.length],['إجمالي السجلات',db.emp.length],['الفروع',OB().length],['الإدارات',OD().length],['الأقسام',OP().length],['إجمالي الرواتب الشهرية',f(sal)],['متوسط الراتب',E.length?f(sal/E.length):'—'],['تعيينات الشهر',db.emp.filter(e=>(e.hire||'').startsWith(m)).length],['تنبيهات',A.length]].map(k=>`<div class="card"><div>${k[0]}</div><div class="k">${k[1]}</div></div>`).join('')}</div>
+  <div class="cg" style="margin:14px 0">${[['hc1','الموظفون حسب الإدارة'],['hc2','الموظفون حسب الفرع'],['hc3','النوع'],['hc4','نوع التعاقد'],['hc5','مدة الخدمة'],['hc6','التعيينات الشهرية (آخر 12 شهر)']].map(c=>`<div class="card"><h3>${c[1]}</h3><div style="height:260px"><canvas id="${c[0]}"></canvas></div></div>`).join('')}</div>
+  <div class="card"><h3>تنبيهات الموارد البشرية</h3>${tbl(['الموظف','البند','الموعد','الحالة'],A)}</div>
+  <div class="card"><h3>الهيكل الإداري (فروع ← إدارات ← أقسام)</h3>${adminTree()}</div>
+  <div class="card"><h3>الهرم الوظيفي</h3>${posTree()}</div>
+  <div class="card" id="orgc"><div class="row np"><h3 style="margin:0">الشجرة التنظيمية (المدير المباشر)</h3><button class="b" onclick="prSel('#orgc','الهيكل التنظيمي للمنشأة',0)">طباعة</button></div>${mgrTree()}</div>`;
 };
 
 /* ====== التقارير ====== */
@@ -1446,7 +1578,7 @@ setup(){
   <button class="b y" onclick="expAll()">تصدير كل البيانات إلى Excel</button><p><small>حمّل النموذج واملأه ثم ارفعه كما هو. الصفوف الخاطئة تُتخطى ويظهر لك رقمها. تصدير التقارير من شاشة التقارير.</small></p></div>`;
 },
 hr(){
-  const T={emp:'الموظفون',org:'الهيكل التنظيمي',att:'الحضور',lv:'الإجازات',ln:'السلف والمكافآت',pay:'الرواتب'};
+  const T={dash:'لوحة الموارد البشرية',emp:'الموظفون',org:'الهيكل التنظيمي',att:'الحضور',lv:'الإجازات',ln:'السلف والمكافآت',pay:'الرواتب'};
   return `<div class="card np"><div class="row">${Object.keys(T).map(k=>`<button class="b ${k==hrt?'y':''}" onclick="hrt='${k}';go('hr')">${T[k]}</button>`).join('')}</div></div>`+H[hrt]();
 },
 cash(){
@@ -1505,6 +1637,10 @@ find(){
 fleet(){
   const T={dash:'لوحة الأسطول',veh:'المركبات',drv:'السائقون',fuel:'الوقود',mnt:'الصيانة',trip:'الرحلات',exp:'المصروفات والحوادث',doc:'المستندات والتراخيص',chk:'الفحص اليومي',rep:'التقارير'};
   return `<div class="card np"><div class="row">${Object.keys(T).map(k=>`<button class="b ${k==flt?'y':''}" onclick="flt='${k}';go('fleet')">${T[k]}</button>`).join('')}</div></div>`+FV[flt]();
+},
+ntf(){
+  const L=myNtf().slice().sort((a,b)=>a.id<b.id?1:-1);
+  return `<div class="card"><h3>الإشعارات</h3>${tbl(['التاريخ','الرسالة','من',''],L.map(n=>[n.d,n.seen?esc(n.msg):'<b>'+esc(n.msg)+'</b>',esc(n.by),n.seen?'تم الاطلاع':`<button class="b y" onclick="ntfSeen(${n.id})">تم الاطلاع</button>`]))}</div>`;
 },
 journal(){
   const o=ACC.filter(postable).map(a=>`<option value="${a[0]}">${a[0]} ${a[1]}</option>`).join('');
