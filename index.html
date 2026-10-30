@@ -62,9 +62,9 @@ const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const f=n=>Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
 const r2=x=>Math.round(x*100)/100,today=()=>new Date().toISOString().slice(0,10);
-const M=['dash','find','pos','sales','purchases','cash','reps','rep','inventory','setup','hr','journal','reports','tax','edit','users'];
-const MN={dash:'الرئيسية',pos:'نقاط البيع',sales:'المبيعات',purchases:'المشتريات',cash:'الخزينة',reps:'إدارة المناديب',rep:'شاشة المندوب',inventory:'المخازن',setup:'التهيئة',hr:'الموارد البشرية',edit:'تعديل البيانات',find:'بحث شامل',tax:'الضرائب',journal:'القيود',reports:'التقارير',users:'المستخدمون'};
-const ACC=[['1000','النقدية','A','cash'],['1010','مقبوضات البطاقات','A','bank'],['1020','المحافظ الإلكترونية','A','wallet'],['1100','العملاء','A',null,null,true],['1400','سلف الموظفين','A'],['1200','المخزون','A',null,null,true],['1300','ضريبة مدخلات','A'],['1320','ضرائب مخصومة لدى العملاء','A'],['2000','الموردون','L',null,null,true],['2100','ضريبة مخرجات','L'],['2110','ضريبة جدول مستحقة','L'],['2150','ضريبة خصم من المنبع مستحقة','L'],['2200','رواتب مستحقة','L'],['2300','تأمينات مستحقة','L'],['3000','رأس المال','E'],['3100','أرصدة افتتاحية','E'],['4000','إيرادات المبيعات','R'],['4100','إيرادات أخرى','R'],['5000','تكلفة البضاعة المباعة','X'],['5100','مصروفات عمومية','X'],['5200','الرواتب والأجور','X'],['5250','عمولات المناديب','X'],['5300','إيجار','X'],['5400','كهرباء ومياه واتصالات','X'],['5500','مواصلات وانتقالات','X'],['5600','صيانة ونظافة','X']];
+const M=['dash','find','pos','sales','purchases','cash','reps','rep','fleet','inventory','setup','hr','journal','reports','tax','edit','users'];
+const MN={dash:'الرئيسية',pos:'نقاط البيع',sales:'المبيعات',purchases:'المشتريات',cash:'الخزينة',reps:'إدارة المناديب',rep:'شاشة المندوب',fleet:'إدارة الأسطول',inventory:'المخازن',setup:'التهيئة',hr:'الموارد البشرية',edit:'تعديل البيانات',find:'بحث شامل',tax:'الضرائب',journal:'القيود',reports:'التقارير',users:'المستخدمون'};
+const ACC=[['1000','النقدية','A','cash'],['1010','مقبوضات البطاقات','A','bank'],['1020','المحافظ الإلكترونية','A','wallet'],['1100','العملاء','A',null,null,true],['1400','سلف الموظفين','A'],['1200','المخزون','A',null,null,true],['1300','ضريبة مدخلات','A'],['1320','ضرائب مخصومة لدى العملاء','A'],['2000','الموردون','L',null,null,true],['2100','ضريبة مخرجات','L'],['2110','ضريبة جدول مستحقة','L'],['2150','ضريبة خصم من المنبع مستحقة','L'],['2200','رواتب مستحقة','L'],['2300','تأمينات مستحقة','L'],['3000','رأس المال','E'],['3100','أرصدة افتتاحية','E'],['4000','إيرادات المبيعات','R'],['4100','إيرادات أخرى','R'],['5000','تكلفة البضاعة المباعة','X'],['5100','مصروفات عمومية','X'],['5200','الرواتب والأجور','X'],['5250','عمولات المناديب','X'],['5410','وقود وزيوت','X'],['5420','صيانة وقطع غيار المركبات','X'],['5430','مصروفات مركبات أخرى','X'],['5300','إيجار','X'],['5400','كهرباء ومياه واتصالات','X'],['5500','مواصلات وانتقالات','X'],['5600','صيانة ونظافة','X']];
 const PA={cash:'1000',card:'1010',wallet:'1020'};
 let lastInv=0,hrt='emp',attD=new Date().toISOString().slice(0,10),payM=new Date().toISOString().slice(0,7);
 const TY={A:'أصل',L:'التزام',E:'حقوق ملكية',R:'إيراد',X:'مصروف'};
@@ -107,7 +107,7 @@ async function enter(u){
   const[a,b,c,d,e,pa,ac,shf,em,hh,iv]=await Promise.all([q('products'),q('invoices').order('id'),q('journal_entries').order('id'),q('settings'),q('profiles'),q('parties'),q('accounts'),q('shifts'),q('employees'),q('hr'),q('inv')]);
   db={products:(a.data||[]).map(({ext,...x})=>({...x,...(ext||{}),price:+x.price,q:+x.q,cost:+x.cost})),inv:(b.data||[]).map(x=>x.data),je:(c.data||[]).map(x=>x.data),vat:14,profiles:e.data||[],parties:(pa.data||[]).map(x=>x.data),shifts:(shf.data||[]).map(x=>x.data),emp:(em.data||[]).map(x=>x.data),hr:(hh.data||[]).map(x=>x.data)};
   const IV=(iv.data||[]).map(x=>x.data);
-  Object.assign(db,{wh:[{id:'w0',name:'المخزن الرئيسي'},...IV.filter(x=>x.k=='wh').map(x=>({id:String(x.id),name:x.name}))],grp:IV.filter(x=>x.k=='grp'),loc:IV.filter(x=>x.k=='loc'),mvs:IV.filter(x=>x.k=='mv'),reps:IV.filter(x=>x.k=='rep'),visits:IV.filter(x=>x.k=='visit'),sds:IV.filter(x=>x.k=='sd')});
+  Object.assign(db,{wh:[{id:'w0',name:'المخزن الرئيسي'},...IV.filter(x=>x.k=='wh').map(x=>({id:String(x.id),name:x.name}))],grp:IV.filter(x=>x.k=='grp'),loc:IV.filter(x=>x.k=='loc'),mvs:IV.filter(x=>x.k=='mv'),reps:IV.filter(x=>x.k=='rep'),visits:IV.filter(x=>x.k=='visit'),sds:IV.filter(x=>x.k=='sd'),fl:IV.filter(x=>FK.includes(x.k))});
   const AC=ac.data||[];
   db.cc=AC.filter(x=>x.type=='CC').map(x=>({code:x.code,name:x.name}));
   AC.filter(x=>x.type!='CC').forEach(x=>{const o=ACC.find(y=>y[0]==x.code);if(o){o[4]=x.parent||o[4]||null}else ACC.push([x.code,x.name,x.type,x.kind||null,x.parent||null,!!x.ctl,!!x.hdr])});
@@ -131,6 +131,7 @@ function go(m){
   if(m=='pos'&&curSh()){pg();posr()}
   if(m=='dash')charts();
   if(m=='reps')repCharts();
+  if(m=='fleet'&&flt=='dash')fleetCharts();
 }
 
 /* ====== المحاسبة (قيد مزدوج) ====== */
@@ -782,11 +783,11 @@ const EF={
 function edObj(t,k){
   if(t=='acc'){const a=ACC.find(x=>x[0]==k);return{name:a[1],type:a[2],kind:a[3]||'',parent:a[4]||'',ctl:!!a[5],hdr:!!a[6]}}
   if(t=='cc')return db.cc.find(x=>x.code==k);
-  return{emp:db.emp,prod:db.products,party:db.parties,wh:db.wh,grp:db.grp,loc:db.loc,rep:db.reps}[t].find(x=>String(x.id)==k);
+  return({emp:db.emp,prod:db.products,party:db.parties,wh:db.wh,grp:db.grp,loc:db.loc,rep:db.reps}[t]||db.fl.filter(x=>x.k==t)).find(x=>String(x.id)==k);
 }
 function edList(){
   const E=k=>`<button class="b" onclick="ed('${edT}','${k}')">تعديل</button>`;
-  const L={
+  const L=({
    acc:()=>[['الكود','الاسم','النوع','الخصائص'],ACC.map(a=>[a[0],esc(a[1]),TY[a[2]],[a[6]?'تجميعي':'',a[5]?'مراقبة':'',a[3]?'خزينة':''].filter(Boolean).join('، '),E(a[0])])],
    cc:()=>[['الكود','المركز'],db.cc.map(c=>[c.code,esc(c.name),E(c.code)])],
    emp:()=>[['الاسم','الوظيفة','الأساسي','الحالة'],db.emp.map(e=>[esc(e.name),esc(e.job),f(e.basic),ST[e.status],E(e.id)])],
@@ -797,7 +798,7 @@ function edList(){
    loc:()=>[['المكان','المخزن'],db.loc.map(l=>[esc(l.name),esc(whN(l.wh)),E(l.id)])],
    rep:()=>[['المندوب','الهاتف','التارجت','الحالة'],db.reps.map(r=>[esc(r.name),esc(r.phone),f(r.target),r.status=='on'?'نشط':'موقوف',E(r.id)])],
    je:()=>[['#','التاريخ','البيان','المرجع','المبلغ'],db.je.slice().reverse().slice(0,60).map(j=>[j.id,j.d,esc(j.desc),j.ref||'',f(j.l.reduce((s,l)=>s+l[1],0)),E(j.id)])]
-  }[edT]();
+  }[edT]||flEdL)();
   return tbl([...L[0],''],L[1]);
 }
 function ed(t,k){
@@ -808,17 +809,19 @@ function ed(t,k){
     if(f[2]=='s')h=`<select id="${id}">${Object.keys(f[3]).map(x=>`<option value="${x}" ${x==v?'selected':''}>${f[3][x]}</option>`).join('')}</select>`;
     else if(f[2]=='par')h=`<select id="${id}"><option value="">بدون أب</option>${ACC.filter(a=>a[6]&&a[0]!=k).map(a=>`<option value="${a[0]}" ${a[0]==v?'selected':''}>${esc(a[1])} (${TY[a[2]]})</option>`).join('')}</select>`;
     else if(f[2]=='grp')h=`<select id="${id}"><option value="">بدون مجموعة</option>${db.grp.map(g=>`<option value="${g.id}" ${g.id==v?'selected':''}>${esc(g.name)}</option>`).join('')}</select>`;
+    else if(f[2]=='veh'||f[2]=='drv')h=`<select id="${id}">${db.fl.filter(x=>x.k==f[2]).map(x=>`<option value="${x.id}" ${x.id==v?'selected':''}>${esc(x.plate||x.name)}</option>`).join('')}</select>`;
+    else if(f[2]=='cc')h=`<select id="${id}">${ccO().replace('value="'+v+'"','value="'+v+'" selected')}</select>`;
     else if(f[2]=='b')return `<label style="flex-direction:row;align-items:center;gap:4px"><input type="checkbox" id="${id}" ${v?'checked':''}>${f[1]}</label>`;
     else h=`<input id="${id}" type="${f[2]=='n'?'number':f[2]=='d'?'date':'text'}" ${f[2]=='n'?'step="0.01"':''} value="${esc(v)}">`;
     return `<label>${f[1]}${h}</label>`;
   };
-  $('#edbox').innerHTML=`<div class="card"><h3>تعديل: ${esc(o.name||k)}</h3><div class="row">${EF[t].map(inp).join('')}</div><button class="b y" onclick="edSave('${t}','${k}')">حفظ التعديل</button> <button class="b" onclick="$('#edbox').innerHTML=''">إلغاء</button></div>`;
+  $('#edbox').innerHTML=`<div class="card"><h3>تعديل: ${esc(o.name||o.plate||k)}</h3><div class="row">${EF[t].map(inp).join('')}</div><button class="b y" onclick="edSave('${t}','${k}')">حفظ التعديل</button> <button class="b" onclick="$('#edbox').innerHTML=''">إلغاء</button></div>`;
   $('#edbox').scrollIntoView();
 }
 function edSave(t,k){
   const o=edObj(t,k),v={};
   for(const f of EF[t]){const e=$('#ef_'+f[0]);v[f[0]]=f[2]=='b'?e.checked:f[2]=='n'?(+e.value||0):e.value.trim()}
-  if(!v.name)return alert('الاسم مطلوب');
+  if(EF[t].some(q=>q[0]=='name')&&!v.name)return alert('الاسم مطلوب');
   if(t=='acc'){
     const a=ACC.find(x=>x[0]==k),used=db.je.some(j=>j.l.some(l=>l[0]==k)),par=ACC.find(x=>x[0]==v.parent);
     if(SYS.includes(k)&&(v.type!=a[2]||v.hdr))return alert('حساب أساسي في النظام: لا يمكن تغيير نوعه أو جعله تجميعيًا');
@@ -836,7 +839,7 @@ function edSave(t,k){
   }else if(t=='wh'){
     if(o.id=='w0')return alert('المخزن الرئيسي الافتراضي لا يُعاد تسميته');
     o.name=v.name;put('inv',{id:+o.id,k:'wh',name:v.name});
-  }else{Object.assign(o,v);put({emp:'employees',party:'parties',grp:'inv',loc:'inv',rep:'inv'}[t],o)}
+  }else{Object.assign(o,v);put({emp:'employees',party:'parties',grp:'inv',loc:'inv',rep:'inv'}[t]||'inv',o)}
   alert('تم حفظ التعديل');go('edit');
 }
 function edJe(id){
@@ -872,6 +875,176 @@ function revJe(id){
   if(!confirm('إنشاء قيد عكسي لهذا القيد؟'))return;
   try{post(today(),'عكس القيد '+j.id+': '+j.desc,j.l.map(l=>[l[0],l[2],l[1],l[3],l[4]]),'REV'+j.id);save();go('edit')}catch(e){alert(e.message)}
 }
+
+/* ====== إدارة الأسطول ====== */
+const FK=['veh','drv','fuel','mnt','plan','trip','exp','doc','chk'];
+let flt='dash',fm=new Date().toISOString().slice(0,7);
+const FL=k=>db.fl.filter(x=>x.k==k),vObj=id=>db.fl.find(x=>x.id==id&&x.k=='veh'),vN=id=>{const v=vObj(id);return v?v.plate+(v.make?' - '+v.make:''):'؟'},dN=id=>(db.fl.find(x=>x.id==id&&x.k=='drv')||{}).name||'';
+const vO=()=>FL('veh').map(v=>`<option value="${v.id}">${esc(v.plate)} ${esc(v.make||'')}</option>`).join(''),dO=()=>FL('drv').filter(d=>d.status!='off').map(d=>`<option value="${d.id}">${esc(d.name)}</option>`).join('');
+const VT={car:'سيارة',van:'ميكروباص أو فان',truck:'شاحنة',moto:'دراجة نارية',oth:'أخرى'},FT3={p92:'بنزين 92',p95:'بنزين 95',dsl:'سولار',gas:'غاز طبيعي',ev:'كهرباء'},VS={ok:'نشطة',mnt:'في الصيانة',off:'خارج الخدمة'};
+const EC={fine:'مخالفة مرورية',acc:'حادث',ins:'تأمين',lic:'ترخيص',toll:'رسوم طرق',tire:'إطارات',part:'قطع غيار',wash:'غسيل وخدمات',oth:'أخرى'},DT={reg:'رخصة تسيير',ins1:'تأمين إجباري',ins2:'تأمين شامل',chk:'فحص فني',op:'رخصة تشغيل',oth:'أخرى'};
+const CK=['الإطارات','الزيوت والمياه','الفرامل','الإضاءة','الزجاج والمساحات','نظافة المركبة','أوراق المركبة','طفاية الحريق','حقيبة الإسعاف'];
+const FF={
+ veh:[['plate','اللوحة','t'],['type','النوع','s',VT],['make','الماركة والموديل','t'],['year','سنة الصنع','n'],['vin','رقم الشاسيه','t'],['fuel','نوع الوقود','s',FT3],['tank','سعة الخزان (لتر)','n'],['odo','عداد الكيلومترات الحالي','n'],['status','الحالة','s',VS],['drv','السائق المسؤول','drv'],['cc','مركز التكلفة','cc'],['pdate','تاريخ الشراء','d'],['pcost','قيمة الشراء','n']],
+ drv:[['name','الاسم','t'],['phone','الهاتف','t'],['lic','رقم الرخصة','t'],['licCls','درجة الرخصة','t'],['licExp','تاريخ انتهاء الرخصة','d'],['natid','الرقم القومي','t'],['status','الحالة','s',{on:'نشط',off:'موقوف'}]],
+ fuel:[['veh','المركبة','veh'],['drv','السائق','drv'],['d','التاريخ','d'],['odo','قراءة العداد','n'],['liters','اللترات','n'],['amt','إجمالي المبلغ','n'],['stn','المحطة','t'],['pay','الدفع','pay']],
+ mnt:[['veh','المركبة','veh'],['d','التاريخ','d'],['odo','قراءة العداد','n'],['mt','النوع','s',{prev:'وقائية',corr:'تصحيحية',tire:'إطارات',oth:'أخرى'}],['desc','الوصف','t'],['vendor','الورشة','t'],['amt','التكلفة','n'],['st','الحالة','s',{done:'تمت',plan:'مجدولة',prog:'جارية'}],['plan','خطة الصيانة المرتبطة','plan'],['pay','الدفع','pay']],
+ plan:[['veh','المركبة','veh'],['name','الخدمة (مثلًا تغيير زيت)','t'],['km','كل كم','n'],['days','أو كل يوم','n'],['lastKm','آخر تنفيذ عند كم','n'],['lastD','تاريخ آخر تنفيذ','d']],
+ trip:[['veh','المركبة','veh'],['drv','السائق','drv'],['d','تاريخ البدء','d'],['from','من','t'],['to','إلى','t'],['purpose','الغرض','t'],['so','عداد البداية','n']],
+ exp:[['veh','المركبة','veh'],['drv','السائق (اختياري)','drv'],['d','التاريخ','d'],['cat','البند','s',EC],['amt','المبلغ','n'],['desc','البيان','t'],['pay','الدفع','pay']],
+ doc:[['veh','المركبة','veh'],['dt','نوع المستند','s',DT],['no','الرقم','t'],['iss','تاريخ الإصدار','d'],['exp','تاريخ الانتهاء','d'],['amt','الرسوم','n'],['pay','الدفع','pay']],
+ chk:[['veh','المركبة','veh'],['drv','السائق','drv'],['d','التاريخ','d'],['odo','قراءة العداد','n'],['note','ملاحظات','t']]
+};
+const FTL={veh:'إضافة مركبة',drv:'إضافة سائق',fuel:'تسجيل تعبئة وقود',mnt:'تسجيل صيانة',plan:'خطة صيانة دورية',trip:'بدء رحلة',exp:'تسجيل مصروف أو حادث أو مخالفة',doc:'إضافة مستند أو ترخيص',chk:'فحص يومي للمركبة'};
+Object.keys(FF).forEach(k=>EF[k]=FF[k].filter(q=>!['pay','plan'].includes(q[2])));
+const flEdL=()=>{const k=edT,sp=EF[k].slice(0,4),fv=(q,x)=>q[2]=='veh'?vN(x[q[0]]):q[2]=='drv'?dN(x[q[0]]):q[2]=='s'?(q[3][x[q[0]]]||''):esc(x[q[0]]??'');return[sp.map(q=>q[1]),db.fl.filter(x=>x.k==k).map(x=>[...sp.map(q=>fv(q,x)),`<button class="b" onclick="ed('${k}','${x.id}')">تعديل</button>`])]};
+const dd=d=>d?Math.ceil((new Date(d)-new Date(today()))/864e5):null;
+const badge=n=>n===null?'':n<0?`<b style="color:#b3261e">منتهي منذ ${-n} يوم</b>`:n<=30?`<b style="color:#c77700">ينتهي خلال ${n} يوم</b>`:`<span style="color:#1b7f4b">ساري (${n} يوم)</span>`;
+function flInp(q){
+  const id='fl_'+q[0],t=q[2];
+  if(t=='s')return `<select id="${id}">${Object.keys(q[3]).map(x=>`<option value="${x}">${q[3][x]}</option>`).join('')}</select>`;
+  if(t=='veh')return `<select id="${id}">${vO()}</select>`;
+  if(t=='drv')return `<select id="${id}"><option value="">—</option>${dO()}</select>`;
+  if(t=='cc')return `<select id="${id}">${ccO()}</select>`;
+  if(t=='pay')return `<select id="${id}">${vtrs().map(a=>`<option value="${a[0]}">${esc(a[1])}</option>`).join('')}<option value="none">بدون ترحيل محاسبي</option></select>`;
+  if(t=='plan')return `<select id="${id}"><option value="">بدون</option>${FL('plan').map(x=>`<option value="${x.id}">${esc(vN(x.veh))} - ${esc(x.name)}</option>`).join('')}</select>`;
+  return `<input id="${id}" type="${t=='n'?'number':t=='d'?'date':'text'}" ${t=='n'?'step="0.01"':''} value="${t=='d'&&!['exp','licExp','pdate','lastD'].includes(q[0])?today():''}">`;
+}
+function flForm(k){
+  return `<div class="card"><h3>${FTL[k]}</h3><div class="row">${FF[k].map(q=>`<label>${q[1]}${flInp(q)}</label>`).join('')}</div>${k=='chk'?`<div class="row">${CK.map(c=>`<label style="flex-direction:row;align-items:center;gap:4px"><input type="checkbox" class="fl_ck" value="${c}" checked>${c}</label>`).join('')}</div>`:''}<button class="b y" onclick="flAdd('${k}')">حفظ</button></div>`;
+}
+function flAdd(k){
+  const r={id:nid(),k};
+  for(const q of FF[k]){const v=$('#fl_'+q[0]).value;r[q[0]]=q[2]=='n'?(+v||0):['veh','drv','plan'].includes(q[2])?(+v||null):q[2]=='cc'?(v||null):v.trim()}
+  const V=vObj(r.veh);
+  if(k=='veh'&&!r.plate)return alert('أدخل رقم اللوحة');
+  if(k=='drv'&&!r.name)return alert('أدخل اسم السائق');
+  if(k!='veh'&&k!='drv'&&!V)return alert('اختر المركبة (أضفها من تبويب المركبات)');
+  if(k=='fuel'&&!(r.liters>0))return alert('أدخل عدد اللترات');
+  if(k=='plan'&&!(r.km>0||r.days>0))return alert('حدد كل كم أو كل يوم');
+  if(k=='doc'){if(!r.exp)return alert('أدخل تاريخ الانتهاء');r.d=r.iss||today()}
+  if(k!='veh'&&k!='drv'&&!r.d)r.d=today();
+  const pst=(acc,ds)=>{if(r.pay&&r.pay!='none'&&r.amt>0)post(r.d,ds+' - '+V.plate,[[acc,r2(r.amt),0,undefined,V.cc||undefined],[r.pay,0,r2(r.amt)]],'FL'+r.id)};
+  try{
+    if(k=='fuel')pst('5410','وقود');
+    if(k=='mnt'){
+      if(r.st=='done')pst('5420','صيانة');
+      const pl=FL('plan').find(x=>x.id==r.plan);if(pl&&r.st=='done'){pl.lastKm=r.odo||pl.lastKm;pl.lastD=r.d;put('inv',pl)}
+      if(r.st=='prog'){V.status='mnt';put('inv',V)}else if(r.st=='done'&&V.status=='mnt'){V.status='ok';put('inv',V)}
+    }
+    if(k=='exp')pst(['part','tire'].includes(r.cat)?'5420':'5430',EC[r.cat]);
+    if(k=='doc')pst('5430',DT[r.dt]);
+    if(k=='trip'){r.st='open';r.so=r.so||V.odo||0}
+    if(k=='chk'){r.items=[...document.querySelectorAll('.fl_ck:checked')].map(x=>x.value);r.ok=r.items.length==CK.length}
+  }catch(e){return alert(e.message)}
+  if(V&&r.odo>(V.odo||0)){V.odo=r.odo;put('inv',V)}
+  db.fl.push(r);put('inv',r);save();go('fleet');
+}
+function flSet(id,k,v){const x=db.fl.find(y=>y.id==id);x[k]=v;put('inv',x)}
+function tripEnd(id){
+  const t=db.fl.find(x=>x.id==id),v=prompt('قراءة عداد النهاية',t.so||0);if(v===null)return;
+  const eo=+v;if(!(eo>=t.so))return alert('قراءة غير صحيحة');
+  t.eo=eo;t.st='done';put('inv',t);const V=vObj(t.veh);if(V&&eo>V.odo){V.odo=eo;put('inv',V)}go('fleet');
+}
+function mntDone(id){
+  const m=db.fl.find(x=>x.id==id),v=prompt('التكلفة النهائية للصيانة',m.amt||0);if(v===null)return;
+  const c=+v||0,V=vObj(m.veh),pay=vtrs()[0];
+  try{if(c>0&&pay)post(today(),'صيانة - '+V.plate,[['5420',c,0,undefined,V.cc||undefined],[pay[0],0,c]],'FL'+m.id)}catch(e){return alert(e.message)}
+  m.amt=c;m.st='done';const pl=db.fl.find(x=>x.id==m.plan);if(pl){pl.lastKm=m.odo||pl.lastKm;pl.lastD=today();put('inv',pl)}
+  if(V&&V.status=='mnt'){V.status='ok';put('inv',V)}put('inv',m);save();go('fleet');
+}
+function docRenew(id){
+  const x=db.fl.find(y=>y.id==id),d=prompt('تاريخ الانتهاء الجديد (YYYY-MM-DD)');
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(d||''))return;x.exp=d;x.iss=today();put('inv',x);go('fleet');
+}
+function kmIn(v,m){
+  const P=[];
+  db.fl.forEach(x=>{if(x.veh!=v.id)return;if(x.k=='trip'){P.push([x.d,x.so]);if(x.eo)P.push([x.d,x.eo])}else if(x.odo&&x.d)P.push([x.d,x.odo])});
+  const inM=P.filter(a=>a[0].startsWith(m)).map(a=>a[1]),bf=P.filter(a=>a[0]<m).map(a=>a[1]);
+  if(!inM.length)return 0;
+  return Math.max(0,Math.max(...inM)-(bf.length?Math.max(...bf):Math.min(...inM)));
+}
+function vCost(v,m){
+  const R=db.fl.filter(x=>x.veh==v.id&&(x.d||'').startsWith(m)),sm=(k,fn)=>R.filter(x=>x.k==k&&(!fn||fn(x))).reduce((s,x)=>s+(+x.amt||0),0);
+  const fuel=sm('fuel'),mnt=sm('mnt',x=>x.st=='done'),oth=sm('exp')+sm('doc'),lit=R.filter(x=>x.k=='fuel').reduce((s,x)=>s+(+x.liters||0),0),km=kmIn(v,m),total=r2(fuel+mnt+oth);
+  return{fuel,mnt,oth,total,lit,km,cpk:km?r2(total/km):0,kml:lit&&km?r2(km/lit):0};
+}
+function planNext(p){
+  const V=vObj(p.veh)||{},rk=p.km?(+p.lastKm||0)+p.km-(V.odo||0):null,rd=p.days&&p.lastD?dd(new Date(new Date(p.lastD).getTime()+p.days*864e5).toISOString().slice(0,10)):null;
+  return{rk,rd,due:(rk!==null&&rk<=500)||(rd!==null&&rd<=14),late:(rk!==null&&rk<0)||(rd!==null&&rd<0)};
+}
+function flAlerts(){
+  const A=[];
+  FL('doc').forEach(x=>{const n=dd(x.exp);if(n!==null&&n<=30)A.push([esc(vN(x.veh)),esc(DT[x.dt]+(x.no?' '+x.no:'')),x.exp,badge(n)])});
+  FL('drv').forEach(x=>{const n=dd(x.licExp);if(n!==null&&n<=30&&x.status!='off')A.push([esc(x.name),'رخصة قيادة',x.licExp,badge(n)])});
+  FL('plan').forEach(p=>{const q=planNext(p);if(q.due)A.push([esc(vN(p.veh)),esc('صيانة: '+p.name),q.rk!==null?'متبقي '+q.rk+' كم':'متبقي '+q.rd+' يوم',q.late?'<b style="color:#b3261e">متأخرة</b>':'<b style="color:#c77700">مستحقة قريبًا</b>'])});
+  return A;
+}
+function fuelRows(){
+  const last={},rows=[];
+  FL('fuel').slice().sort((a,b)=>a.d<b.d?-1:a.d>b.d?1:(a.odo||0)-(b.odo||0)).forEach(x=>{
+    const pv=last[x.veh],km=pv&&x.odo>pv?x.odo-pv:0;last[x.veh]=x.odo||pv;
+    rows.push([x.d,esc(vN(x.veh)),esc(dN(x.drv)),x.liters,f(x.amt),f(x.liters?x.amt/x.liters:0),x.odo||'',km||'',km&&x.liters?f(km/x.liters):'',km?f(x.amt/km):'']);
+  });
+  return rows.reverse();
+}
+function flCardShow(){
+  const v=vObj($('#kv').value);if(!v)return;
+  const L=db.fl.filter(x=>x.veh==v.id).sort((a,b)=>(a.d||'')<(b.d||'')?1:-1),all=r2(L.filter(x=>x.k!='mnt'||x.st=='done').reduce((s,x)=>s+(+x.amt||0),0));
+  const ln=x=>x.k=='fuel'?['وقود',x.liters+' لتر']:x.k=='mnt'?['صيانة',x.desc||'']:x.k=='exp'?[EC[x.cat],x.desc||'']:x.k=='doc'?[DT[x.dt],(x.no||'')+' حتى '+x.exp]:x.k=='trip'?['رحلة',(x.from||'')+' ← '+(x.to||'')]:['فحص',x.ok?'سليمة':'بها ملاحظات'];
+  $('#kvo').innerHTML=tbl(['اللوحة','النوع','العداد','السائق','الحالة','إجمالي التكاليف'],[[esc(v.plate),VT[v.type],f(v.odo),esc(dN(v.drv)),VS[v.status],f(all)]])+tbl(['التاريخ','السجل','التفاصيل','المبلغ','العداد'],L.filter(x=>FK.slice(2).includes(x.k)&&x.k!='plan').map(x=>[x.d||'',ln(x)[0],esc(ln(x)[1]),x.amt?f(x.amt):'',x.odo||x.eo||x.so||'']));
+}
+function flXl(){
+  const wb=XLSX.utils.book_new();
+  document.querySelectorAll('#flrep table').forEach((t,i)=>XLSX.utils.book_append_sheet(wb,XLSX.utils.table_to_sheet(t),['تكلفة المركبات','السائقون'][i]||'جدول'+(i+1)));
+  xl(wb,'تقرير-الأسطول-'+fm);
+}
+function fleetCharts(){
+  if(!window.Chart)return;
+  chs.forEach(c=>c.destroy());chs=[];
+  Chart.defaults.font.family="'IBM Plex Sans Arabic',Tahoma,sans-serif";
+  const C=['#12353a','#e0a030','#3fa796','#e76f51','#4a90d9','#8e6bbf','#5aa469'],V=FL('veh'),cs=V.map(v=>vCost(v,fm)),nm=V.map(v=>v.plate),
+  lg={legend:{rtl:true,textDirection:'rtl',labels:{usePointStyle:true,padding:14}}},
+  mk=(id,cfg,has)=>{const e=$('#'+id);if(!e)return;if(!has){e.parentNode.innerHTML='<p style="text-align:center;color:#778;padding-top:90px">لا توجد بيانات بعد</p>';return}chs.push(new Chart(e,{...cfg,options:{responsive:true,maintainAspectRatio:false,...(cfg.options||{})}}))};
+  const now=new Date(),ms=[...Array(6)].map((_,i)=>ymd(new Date(now.getFullYear(),now.getMonth()-5+i,1)).slice(0,7)),tt=(m,k)=>r2(V.reduce((s,v)=>s+vCost(v,m)[k],0));
+  mk('fc1',{type:'bar',data:{labels:ms.map(m=>new Date(m+'-15').toLocaleDateString('ar-EG',{month:'long'})),datasets:[{label:'وقود',data:ms.map(m=>tt(m,'fuel')),backgroundColor:C[1],borderRadius:6},{label:'صيانة',data:ms.map(m=>tt(m,'mnt')),backgroundColor:C[3],borderRadius:6},{label:'أخرى',data:ms.map(m=>tt(m,'oth')),backgroundColor:C[4],borderRadius:6}]},options:{plugins:lg,scales:{x:{stacked:true},y:{stacked:true}}}},ms.some(m=>tt(m,'total')>0));
+  mk('fc2',{type:'bar',data:{labels:nm,datasets:[{label:'التكلفة الإجمالية',data:cs.map(c=>c.total),backgroundColor:C,borderRadius:8}]},options:{plugins:{legend:{display:false}}}},cs.some(c=>c.total>0));
+  mk('fc3',{type:'bar',data:{labels:nm,datasets:[{label:'كم/لتر',data:cs.map(c=>c.kml),backgroundColor:C[2],borderRadius:8}]},options:{plugins:{legend:{display:false}}}},cs.some(c=>c.kml>0));
+  const sc=Object.keys(VS).map(k=>V.filter(v=>v.status==k).length);
+  mk('fc4',{type:'doughnut',data:{labels:Object.values(VS),datasets:[{data:sc,backgroundColor:[C[2],C[1],C[3]],borderWidth:3,borderColor:'#fff'}]},options:{cutout:'60%',plugins:lg}},V.length>0);
+  mk('fc5',{type:'bar',data:{labels:nm,datasets:[{label:'تكلفة الكيلومتر',data:cs.map(c=>c.cpk),backgroundColor:C[5],borderRadius:8}]},options:{plugins:{legend:{display:false}}}},cs.some(c=>c.cpk>0));
+}
+const FV={
+dash(){
+  const V=FL('veh'),A=flAlerts(),cs=V.map(v=>vCost(v,fm)),tot=r2(cs.reduce((s,c)=>s+c.total,0)),km=cs.reduce((s,c)=>s+c.km,0);
+  return `<div class="card np"><label>الشهر<input type="month" value="${fm}" onchange="fm=this.value;go('fleet')"></label></div>
+  <div class="grid">${[['المركبات',V.length],['نشطة',V.filter(v=>v.status=='ok').length],['في الصيانة',V.filter(v=>v.status=='mnt').length],['تكلفة الشهر',f(tot)],['كيلومترات الشهر',f(km)],['تكلفة الكيلومتر',km?f(tot/km):'—'],['تنبيهات',A.length]].map(k=>`<div class="card"><div>${k[0]}</div><div class="k">${k[1]}</div></div>`).join('')}</div>
+  <div class="card"><h3>تنبيهات (مستندات ورخص وصيانة مستحقة)</h3>${tbl(['البند','التفصيل','الموعد','الحالة'],A)}</div>
+  <div class="cg">${[['fc1','تكلفة الأسطول (آخر 6 شهور)'],['fc2','تكلفة كل مركبة في الشهر'],['fc3','معدل الاستهلاك (كم/لتر)'],['fc4','حالة المركبات'],['fc5','تكلفة الكيلومتر لكل مركبة']].map(c=>`<div class="card"><h3>${c[1]}</h3><div style="height:260px"><canvas id="${c[0]}"></canvas></div></div>`).join('')}</div>`;
+},
+veh(){
+  return flForm('veh')+`<div class="card">${tbl(['اللوحة','النوع','الماركة','السنة','العداد','السائق','الحالة'],FL('veh').map(v=>[esc(v.plate),VT[v.type],esc(v.make),v.year||'',f(v.odo),esc(dN(v.drv)),`<select onchange="flSet(${v.id},'status',this.value)">${Object.keys(VS).map(k=>`<option value="${k}" ${v.status==k?'selected':''}>${VS[k]}</option>`).join('')}</select>`]))}</div>
+  <div class="card"><h3>كارت المركبة (كل السجلات والتكاليف)</h3><div class="row"><label>المركبة<select id="kv" onchange="flCardShow()">${vO()}</select></label><button class="b y" onclick="flCardShow()">عرض</button></div><div id="kvo"></div></div>`;
+},
+drv(){
+  return flForm('drv')+`<div class="card">${tbl(['الاسم','الهاتف','رقم الرخصة','الدرجة','انتهاء الرخصة','الحالة'],FL('drv').map(d=>[esc(d.name),esc(d.phone),esc(d.lic),esc(d.licCls),d.licExp?d.licExp+' '+badge(dd(d.licExp)):'',`<select onchange="flSet(${d.id},'status',this.value)"><option value="on" ${d.status!='off'?'selected':''}>نشط</option><option value="off" ${d.status=='off'?'selected':''}>موقوف</option></select>`]))}</div>`;
+},
+fuel(){return flForm('fuel')+`<div class="card">${tbl(['التاريخ','المركبة','السائق','لترات','المبلغ','سعر اللتر','العداد','كم منذ آخر تعبئة','كم/لتر','تكلفة الكيلومتر'],fuelRows())}<small>معدل الاستهلاك بيتحسب بين تعبئتين متتاليتين بافتراض ملء الخزان.</small></div>`},
+mnt(){
+  return flForm('mnt')+flForm('plan')+`<div class="card"><h3>خطط الصيانة الدورية</h3>${tbl(['المركبة','الخدمة','كل','آخر تنفيذ','المتبقي','الحالة'],FL('plan').map(p=>{const q=planNext(p);return[esc(vN(p.veh)),esc(p.name),(p.km?p.km+' كم':'')+(p.km&&p.days?' أو ':'')+(p.days?p.days+' يوم':''),(p.lastKm||0)+' كم '+(p.lastD||''),(q.rk!==null?q.rk+' كم':'')+(q.rk!==null&&q.rd!==null?' / ':'')+(q.rd!==null?q.rd+' يوم':''),q.late?'<b style="color:#b3261e">متأخرة</b>':q.due?'<b style="color:#c77700">مستحقة قريبًا</b>':'<span style="color:#1b7f4b">سليمة</span>']}))}</div>
+  <div class="card"><h3>سجل الصيانة</h3>${tbl(['التاريخ','المركبة','النوع','الوصف','الورشة','التكلفة','الحالة',''],FL('mnt').slice().reverse().map(m=>[m.d,esc(vN(m.veh)),{prev:'وقائية',corr:'تصحيحية',tire:'إطارات',oth:'أخرى'}[m.mt],esc(m.desc),esc(m.vendor),f(m.amt),{done:'تمت',plan:'مجدولة',prog:'جارية'}[m.st],m.st!='done'?`<button class="b y" onclick="mntDone(${m.id})">إنجاز</button>`:'']))}</div>`;
+},
+trip(){return flForm('trip')+`<div class="card">${tbl(['التاريخ','المركبة','السائق','من / إلى','الغرض','عداد البداية','عداد النهاية','الكيلومترات','الحالة',''],FL('trip').slice().reverse().map(t=>[t.d,esc(vN(t.veh)),esc(dN(t.drv)),esc((t.from||'')+' ← '+(t.to||'')),esc(t.purpose),f(t.so),t.eo?f(t.eo):'',t.eo?f(t.eo-t.so):'',t.st=='open'?'جارية':'منتهية',t.st=='open'?`<button class="b y" onclick="tripEnd(${t.id})">إنهاء الرحلة</button>`:'']))}</div>`},
+exp(){return flForm('exp')+`<div class="card">${tbl(['التاريخ','المركبة','السائق','البند','المبلغ','البيان'],FL('exp').slice().reverse().map(x=>[x.d,esc(vN(x.veh)),esc(dN(x.drv)),EC[x.cat],f(x.amt),esc(x.desc)]))}</div>`},
+doc(){return flForm('doc')+`<div class="card">${tbl(['المركبة','المستند','الرقم','الإصدار','الانتهاء','الحالة','الرسوم',''],FL('doc').slice().sort((a,b)=>a.exp<b.exp?-1:1).map(x=>[esc(vN(x.veh)),DT[x.dt],esc(x.no),x.iss||'',x.exp,badge(dd(x.exp)),f(x.amt),`<button class="b" onclick="docRenew(${x.id})">تجديد</button>`]))}</div>`},
+chk(){return flForm('chk')+`<div class="card">${tbl(['التاريخ','المركبة','السائق','العداد','النتيجة','الملاحظات'],FL('chk').slice().reverse().map(x=>[x.d,esc(vN(x.veh)),esc(dN(x.drv)),f(x.odo),x.ok?'<span style="color:#1b7f4b">سليمة</span>':'<b style="color:#c77700">ناقص: '+esc(CK.filter(c=>!(x.items||[]).includes(c)).join('، '))+'</b>',esc(x.note)]))}</div>`},
+rep(){
+  const cs=FL('veh').map(v=>[v,vCost(v,fm)]),T=k=>r2(cs.reduce((s,c)=>s+c[1][k],0));
+  const rows=cs.map(([v,c])=>[esc(v.plate),f(c.km),f(c.lit),f(c.fuel),f(c.mnt),f(c.oth),f(c.total),c.cpk?f(c.cpk):'',c.kml?f(c.kml):'']).concat([['<b>الإجمالي</b>',f(T('km')),f(T('lit')),f(T('fuel')),f(T('mnt')),f(T('oth')),f(T('total')),'','']]);
+  const dr=FL('drv').map(d=>{const tr=FL('trip').filter(t=>t.drv==d.id&&(t.d||'').startsWith(fm)),ex=FL('exp').filter(x=>x.drv==d.id&&(x.d||'').startsWith(fm));return[esc(d.name),tr.length,f(tr.reduce((s,t)=>s+(t.eo?t.eo-t.so:0),0)),f(FL('fuel').filter(x=>x.drv==d.id&&(x.d||'').startsWith(fm)).reduce((s,x)=>s+x.liters,0)),ex.length,f(ex.reduce((s,x)=>s+(+x.amt||0),0))]});
+  return `<div class="card np"><div class="row"><label>الشهر<input type="month" value="${fm}" onchange="fm=this.value;go('fleet')"></label><button class="b" onclick="prSel('#flrep','تقرير الأسطول '+fm,0)">طباعة</button><button class="b" onclick="prSel('#flrep','تقرير الأسطول '+fm,1)">حفظ PDF</button><button class="b y" onclick="flXl()">Excel</button></div></div>
+  <div class="card" id="flrep"><h3>تكلفة المركبات</h3>${tbl(['المركبة','كم','لترات','وقود','صيانة','أخرى','الإجمالي','تكلفة/كم','كم/لتر'],rows)}<h3>أداء السائقين</h3>${tbl(['السائق','الرحلات','كم الرحلات','لترات الوقود','مخالفات ومصروفات','قيمتها'],dr)}</div>`;
+}};
 
 /* ====== شجرة الحسابات ====== */
 const kids=c=>ACC.filter(a=>a[4]==c),isHdr=a=>!!a[6]||kids(a[0]).length>0,postable=a=>!!a&&!a[5]&&!isHdr(a);
@@ -1174,7 +1347,7 @@ cash(){
   ${cmCard(o)}<div class="card"><h3>آخر السندات</h3><div class="row np"><button class="b" onclick="prSel('#vlist','سندات الخزينة',0)">طباعة</button><button class="b" onclick="prSel('#vlist','سندات الخزينة',1)">حفظ PDF</button></div><div id="vlist">${tbl(['الرقم','التاريخ','البيان','المبلغ',''],db.je.filter(j=>/^(RV|PV|TR)/.test(j.ref)&&(!myTr()||j.l.some(l=>myTr().includes(l[0])))).slice().reverse().slice(0,30).map(j=>[j.ref,j.d,esc(j.desc),f(j.l.find(l=>l[1]>0)[1]),`<button class="b" onclick="vp(${j.id})">طباعة</button>`]))}</div></div>`;
 },
 edit(){
-  const T={acc:'الحسابات',cc:'مراكز التكلفة',emp:'الموظفون',prod:'الأصناف',party:'العملاء والموردون',wh:'المخازن',grp:'مجموعات الأصناف',loc:'أماكن التخزين',rep:'المناديب',je:'القيود اليومية'};
+  const T={acc:'الحسابات',cc:'مراكز التكلفة',emp:'الموظفون',prod:'الأصناف',party:'العملاء والموردون',wh:'المخازن',grp:'مجموعات الأصناف',loc:'أماكن التخزين',rep:'المناديب',veh:'مركبات الأسطول',drv:'سائقو الأسطول',fuel:'تعبئات الوقود',mnt:'الصيانة',plan:'خطط الصيانة',trip:'الرحلات',exp:'مصروفات الأسطول',doc:'مستندات الأسطول',je:'القيود اليومية'};
   return `<div class="card"><h3>تعديل البيانات (للمدير فقط)</h3><div class="row"><label>نوع البيانات<select onchange="edT=this.value;go('edit')">${Object.keys(T).map(k=>`<option value="${k}" ${k==edT?'selected':''}>${T[k]}</option>`).join('')}</select></label></div></div><div id="edbox"></div><div class="card">${edList()}</div>`;
 },
 reps(){
@@ -1215,6 +1388,10 @@ tax(){
 },
 find(){
   return `<div class="card"><h3>بحث شامل</h3><input id="gq" placeholder="ابحث في العملاء والموردين والأصناف والفواتير والموظفين والحسابات والقيود..." oninput="gsr()" style="width:100%" autofocus></div><div id="gres"></div>`;
+},
+fleet(){
+  const T={dash:'لوحة الأسطول',veh:'المركبات',drv:'السائقون',fuel:'الوقود',mnt:'الصيانة',trip:'الرحلات',exp:'المصروفات والحوادث',doc:'المستندات والتراخيص',chk:'الفحص اليومي',rep:'التقارير'};
+  return `<div class="card np"><div class="row">${Object.keys(T).map(k=>`<button class="b ${k==flt?'y':''}" onclick="flt='${k}';go('fleet')">${T[k]}</button>`).join('')}</div></div>`+FV[flt]();
 },
 journal(){
   const o=ACC.filter(postable).map(a=>`<option value="${a[0]}">${a[0]} ${a[1]}</option>`).join('');
