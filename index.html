@@ -64,8 +64,8 @@ const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const f=n=>Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
 const r2=x=>Math.round(x*100)/100,today=()=>new Date().toISOString().slice(0,10);
-const M=['dash','ntf','find','pos','sales','purchases','cash','reps','rep','fleet','inventory','setup','hr','journal','reports','tax','edit','users'];
-const MN={dash:'الرئيسية',pos:'نقاط البيع',sales:'المبيعات',purchases:'المشتريات',cash:'الخزينة',reps:'إدارة المناديب',rep:'شاشة المندوب',fleet:'إدارة الأسطول',inventory:'المخازن',setup:'التهيئة',hr:'الموارد البشرية',edit:'تعديل البيانات',find:'بحث شامل',ntf:'الإشعارات',tax:'الضرائب',journal:'القيود',reports:'التقارير',users:'المستخدمون'};
+const M=['dash','ntf','appr','find','pos','sales','purchases','cash','reps','rep','fleet','inventory','setup','hr','journal','reports','tax','edit','users'];
+const MN={dash:'الرئيسية',pos:'نقاط البيع',sales:'المبيعات',purchases:'المشتريات',cash:'الخزينة',reps:'إدارة المناديب',rep:'شاشة المندوب',fleet:'إدارة الأسطول',inventory:'المخازن',setup:'التهيئة',hr:'الموارد البشرية',edit:'تعديل البيانات',find:'بحث شامل',ntf:'الإشعارات',appr:'الموافقات',tax:'الضرائب',journal:'القيود',reports:'التقارير',users:'المستخدمون'};
 const ACC=[['1000','النقدية','A','cash'],['1010','مقبوضات البطاقات','A','bank'],['1020','المحافظ الإلكترونية','A','wallet'],['1100','العملاء','A',null,null,true],['1400','سلف الموظفين','A'],['1200','المخزون','A',null,null,true],['1300','ضريبة مدخلات','A'],['1320','ضرائب مخصومة لدى العملاء','A'],['2000','الموردون','L',null,null,true],['2100','ضريبة مخرجات','L'],['2110','ضريبة جدول مستحقة','L'],['2150','ضريبة خصم من المنبع مستحقة','L'],['2200','رواتب مستحقة','L'],['2300','تأمينات مستحقة','L'],['3000','رأس المال','E'],['3100','أرصدة افتتاحية','E'],['4000','إيرادات المبيعات','R'],['4100','إيرادات أخرى','R'],['5000','تكلفة البضاعة المباعة','X'],['5100','مصروفات عمومية','X'],['5200','الرواتب والأجور','X'],['5250','عمولات المناديب','X'],['5410','وقود وزيوت','X'],['5420','صيانة وقطع غيار المركبات','X'],['5430','مصروفات مركبات أخرى','X'],['5300','إيجار','X'],['5400','كهرباء ومياه واتصالات','X'],['5500','مواصلات وانتقالات','X'],['5600','صيانة ونظافة','X']];
 const PA={cash:'1000',card:'1010',wallet:'1020'};
 let lastInv=0,hrt='dash',attD=new Date().toISOString().slice(0,10),payM=new Date().toISOString().slice(0,7);
@@ -73,7 +73,7 @@ const TY={A:'أصل',L:'التزام',E:'حقوق ملكية',R:'إيراد',X:'
 const npf=b=>-ACC.filter(a=>'RX'.includes(a[2])).reduce((s,a)=>s+b[a[0]],0);
 const KEY='acc_db_v1';
 let db,me,cur='dash',cart=[],pcart=[],posc=[];
-const can=m=>me&&(m=='find'||m=='ntf'||(m=='edit'?!!me.is_admin:(me.is_admin||(me.perms||[]).includes(m))));
+const can=m=>me&&(m=='find'||m=='ntf'||m=='appr'||(m=='edit'?!!me.is_admin:(me.is_admin||(me.perms||[]).includes(m))));
 const pn=id=>(db.products.find(p=>p.id==id)||{}).name||'؟';
 const tbl=(h,r)=>`<table><tr>${h.map(x=>`<th>${x}</th>`).join('')}</tr>${r.map(x=>`<tr>${x.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}</table>`;
 
@@ -415,9 +415,15 @@ function saveAtt(){
   alert('تم حفظ الحضور');
 }
 function addLv(){
-  const eid=+$('#lE').value,from=$('#lF').value,to=$('#lU').value,days=Math.round((new Date(to)-new Date(from))/864e5)+1;
-  if(!eid||!(days>0))return alert('اختر الموظف وتواريخ صحيحة');
-  const r={id:nid(),k:'lv',eid,type:$('#lT').value,from,to,days,st:'pending'};db.hr.push(r);put('hr',r);go('hr');
+  const eid=+$('#lE').value,from=$('#lF').value,to=$('#lU').value,days=Math.round((new Date(to)-new Date(from))/864e5)+1,e=db.emp.find(x=>x.id==eid);
+  if(!e||!(days>0))return alert('اختر الموظف وتواريخ صحيحة');
+  const mg=db.emp.find(x=>x.id==e.mgr),mc=x=>({id:x.id,name:x.name,uid:x.uid||null}),act=db.emp.filter(x=>x.id!=e.id&&x.status=='active');
+  let cands=act.filter(x=>!e.dep||x.dep==e.dep||x.dir==e.dir).slice(0,80).map(mc);if(!cands.length)cands=act.slice(0,80).map(mc);
+  const r={id:nid(),k:'lv',eid,type:$('#lT').value,from,to,days,st:'pending',en:e.name,mgr:mg?mg.id:null,mgrName:mg?mg.name:'',mgrUid:(mg&&mg.uid)||null,cands};
+  db.hr.push(r);put('hr',r);
+  if(r.mgrUid){ntfTo(r.mgrUid,'طلب إجازة '+LT[r.type]+' جديد من '+e.name+' من '+from+' إلى '+to+' ('+days+' يوم). اختر من يستلم شغله ثم وافق أو ارفض','appr');alert('تم إرسال الطلب لموافقة المدير المباشر: '+mg.name)}
+  else alert('الموظف ملوش مدير مباشر مرتبط بحساب مستخدم، فالطلب منتظر موافقة الموارد البشرية من جدول الطلبات.');
+  go('hr');
 }
 function lvSt(id,st){
   const r=db.hr.find(x=>x.id==id);
@@ -433,13 +439,20 @@ function addLoan(){
 function addAdj(){
   const eid=+$('#jE').value,amt=r2(+$('#jA').value);
   if(!eid||amt<=0||!$('#jM').value)return alert('أدخل الموظف والشهر والمبلغ');
-  const r={id:nid(),k:'adj',eid,type:$('#jT').value,m:$('#jM').value,amt,desc:$('#jD').value.trim()};db.hr.push(r);put('hr',r);go('hr');
+  const r={id:nid(),k:'adj',eid,type:$('#jT').value,m:$('#jM').value,amt,desc:$('#jD').value.trim()};let msg='';
+  if(r.type=='bonus'){
+    const e=db.emp.find(x=>x.id==eid),dep=db.hr.find(x=>x.id==e.dep),dir=db.hr.find(x=>x.id==(e.dir||(dep&&dep.dir))),head=dir&&db.emp.find(x=>x.id==dir.head);
+    r.ap='pending';r.en=e.name;r.dirName=dir?dir.name:'';r.dirUid=(head&&head.uid)||null;
+    msg=r.dirUid?'تم إرسال طلب المكافأة لموافقة مدير '+dir.name+' ('+head.name+')':'مفيش مدير إدارة مرتبط بحساب مستخدم، فالمكافأة منتظرة موافقة الموارد البشرية من جدول المكافآت.';
+    if(r.dirUid)ntfTo(r.dirUid,'طلب صرف مكافأة '+f(amt)+' للموظف '+e.name+' ('+r.m+') بحاجة لموافقتك','appr');
+  }
+  db.hr.push(r);put('hr',r);if(msg)alert(msg);go('hr');
 }
 function calc(e,m){
   const g=k=>db.hr.filter(x=>x.k==k&&x.eid==e.id),dr=(e.basic+e.allow)/30,at=g('att').filter(x=>x.d.startsWith(m));
-  const ab=at.filter(x=>x.st=='a').length,lt=at.reduce((s,x)=>s+(+x.late||0),0);
+  const ab=at.filter(x=>x.st=='a').length,lt=at.reduce((s,x)=>s+(+x.late||0)+(+x.early||0),0);
   const up=g('lv').filter(x=>x.st=='ok'&&x.type=='unpaid'&&x.from.startsWith(m)).reduce((s,x)=>s+x.days,0);
-  const aj=g('adj').filter(x=>x.m==m),sm=t=>aj.filter(x=>x.type==t).reduce((s,x)=>s+x.amt,0);
+  const aj=g('adj').filter(x=>x.m==m&&x.ap!='pending'&&x.ap!='no'),sm=t=>aj.filter(x=>x.type==t).reduce((s,x)=>s+x.amt,0);
   const loan=r2(g('ln').reduce((s,x)=>s+Math.min(x.inst,x.amt-x.paid),0)),bonus=r2(sm('bonus')+sm('commission')),pen=r2(sm('penalty'));
   const abd=r2(ab*dr),ltd=r2(lt/480*dr),upd=r2(up*dr),ins=r2(e.basic*(e.insp||0)/100),gross=r2(e.basic+e.allow+bonus),ded=r2(abd+ltd+upd+pen);
   return{id:e.id,name:e.name,basic:e.basic,allow:e.allow,bonus,abd,ltd,upd,pen,ins,loan,gross,ded,net:r2(gross-ded-ins-loan)};
@@ -472,11 +485,11 @@ att(){const rec=e=>db.hr.find(x=>x.k=='att'&&x.eid==e.id&&x.d==attD)||{};
 return `<div class="card"><h3>الحضور والانصراف</h3><div class="row"><label>التاريخ<input type="date" value="${attD}" onchange="attD=this.value;go('hr')"></label><button class="b y" onclick="saveAtt()">حفظ الحضور</button></div>${tbl(['الموظف','الحالة','دقائق التأخير'],db.emp.filter(e=>e.status=='active').map(e=>{const r=rec(e);return[esc(e.name),`<select class="as" data-e="${e.id}">${[['p','حاضر'],['a','غائب'],['v','إجازة']].map(o=>`<option value="${o[0]}" ${(r.st||'p')==o[0]?'selected':''}>${o[1]}</option>`).join('')}</select>`,`<input type="number" class="al" data-e="${e.id}" min="0" value="${r.late||0}" style="width:80px">`]}))}</div>`},
 lv(){return `<div class="card"><h3>طلب إجازة</h3><div class="row"><label>الموظف<select id="lE">${eo()}</select></label><label>النوع<select id="lT">${Object.keys(LT).map(k=>`<option value="${k}">${LT[k]}</option>`).join('')}</select></label><label>من<input id="lF" type="date" value="${today()}"></label><label>إلى<input id="lU" type="date" value="${today()}"></label><button class="b y" onclick="addLv()">تقديم الطلب</button></div></div>
 <div class="card"><h3>الأرصدة المتبقية هذا العام</h3>${tbl(['الموظف','سنوية','عارضة'],db.emp.filter(e=>e.status=='active').map(e=>[esc(e.name),lbal(e.id,'annual'),lbal(e.id,'casual')]))}</div>
-<div class="card"><h3>الطلبات</h3>${tbl(['الموظف','النوع','من','إلى','الأيام','الحالة',''],db.hr.filter(x=>x.k=='lv').slice().reverse().map(x=>[esc(eN(x.eid)),LT[x.type],x.from,x.to,x.days,{pending:'قيد الموافقة',ok:'موافق',no:'مرفوض'}[x.st],x.st=='pending'?`<button class="b" onclick="lvSt(${x.id},'ok')">موافقة</button> <button class="b d" onclick="lvSt(${x.id},'no')">رفض</button>`:'']))}</div>`},
+<div class="card"><h3>الطلبات</h3>${tbl(['الموظف','النوع','من','إلى','الأيام','الحالة','يستلم الشغل',''],db.hr.filter(x=>x.k=='lv').slice().reverse().map(x=>[esc(eN(x.eid)),LT[x.type],x.from,x.to,x.days,{pending:'قيد الموافقة',ok:'موافق',no:'مرفوض'}[x.st],x.sub?esc(x.subName||''):(x.st=='pending'?`<select id="sub_${x.id}">${subOpts(x)}</select>`:''),x.st=='pending'?`<button class="b" onclick="lvDecide(${x.id},'ok')">موافقة</button> <button class="b d" onclick="lvDecide(${x.id},'no')">رفض</button>`:'']))}</div>`},
 ln(){return `<div class="card"><h3>سلفة جديدة (تُصرف نقدًا)</h3><div class="row"><label>الموظف<select id="sE">${eo()}</select></label><label>المبلغ<input id="sA" type="number" step="0.01"></label><label>القسط الشهري<input id="sI" type="number" step="0.01"></label><button class="b y" onclick="addLoan()">صرف السلفة</button></div></div>
 <div class="card"><h3>مكافأة أو عمولة أو جزاء</h3><div class="row"><label>الموظف<select id="jE">${eo()}</select></label><label>النوع<select id="jT"><option value="bonus">مكافأة</option><option value="commission">عمولة</option><option value="penalty">جزاء</option></select></label><label>الشهر<input id="jM" type="month" value="${today().slice(0,7)}"></label><label>المبلغ<input id="jA" type="number" step="0.01"></label><label>البيان<input id="jD"></label><button class="b y" onclick="addAdj()">إضافة</button></div></div>
 <div class="card"><h3>السلف</h3>${tbl(['الموظف','المبلغ','القسط','المسدد','المتبقي'],db.hr.filter(x=>x.k=='ln').map(x=>[esc(eN(x.eid)),f(x.amt),f(x.inst),f(x.paid),f(x.amt-x.paid)]))}</div>
-<div class="card"><h3>المكافآت والجزاءات</h3>${tbl(['الموظف','النوع','الشهر','المبلغ','البيان'],db.hr.filter(x=>x.k=='adj').map(x=>[esc(eN(x.eid)),{bonus:'مكافأة',commission:'عمولة',penalty:'جزاء'}[x.type],x.m,f(x.amt),esc(x.desc)]))}</div>`},
+<div class="card"><h3>المكافآت والجزاءات</h3>${tbl(['الموظف','النوع','الشهر','المبلغ','البيان','الحالة',''],db.hr.filter(x=>x.k=='adj').map(x=>[esc(eN(x.eid)),{bonus:'مكافأة',commission:'عمولة',penalty:'جزاء'}[x.type],x.m,f(x.amt),esc(x.desc),x.ap=='pending'?'بانتظار موافقة مدير الإدارة':x.ap=='no'?'مرفوضة':'معتمدة',x.ap=='pending'?`<button class="b" onclick="bonusDecide(${x.id},'ok')">اعتماد</button> <button class="b d" onclick="bonusDecide(${x.id},'no')">رفض</button>`:'']))}</div>`},
 pay(){const m=payM,run=db.hr.find(x=>x.k=='run'&&x.m==m),rows=run?run.rows:db.emp.filter(e=>e.status=='active').map(e=>calc(e,m));
 return `<div class="card"><h3>كشف الرواتب</h3><div class="row np"><label>الشهر<input type="month" value="${m}" onchange="payM=this.value;go('hr')"></label>${run?(run.paid?'<b>تم صرف الرواتب</b>':`<button class="b y" onclick="payRun(${run.id})">صرف الرواتب نقدًا</button>`):'<button class="b y" onclick="runPay()">اعتماد الكشف وترحيل القيد</button>'}<button class="b" onclick="print()">طباعة الكشف</button></div>
 ${tbl(['الموظف','الأساسي','البدلات','مكافآت','غياب','تأخير','بدون أجر','جزاءات','تأمينات','سلف','الصافي',''],rows.map(r=>[esc(r.name),f(r.basic),f(r.allow),f(r.bonus),f(r.abd),f(r.ltd),f(r.upd),f(r.pen),f(r.ins),f(r.loan),`<b>${f(r.net)}</b>`,`<button class="b np" onclick="slip(${r.id},'${m}')">إيصال</button>`]))}</div>`}
@@ -774,7 +787,7 @@ function rColSave(pid){
 
 /* ====== تعديل البيانات (للمدير) ====== */
 let edT='acc';
-const MU=M.filter(m=>m!='edit'&&m!='find'&&m!='ntf'),SYS=['1000','1010','1020','1100','1200','1300','1400','2000','2100','2200','2300','3000','3100','4000','5000','5100','5200','5250','1320','2110','2150'];
+const MU=M.filter(m=>m!='edit'&&m!='find'&&m!='ntf'&&m!='appr'),SYS=['1000','1010','1020','1100','1200','1300','1400','2000','2100','2200','2300','3000','3100','4000','5000','5100','5200','5250','1320','2110','2150'];
 const EF={
  acc:[['name','الاسم','t'],['type','النوع','s',TY],['kind','نوع الخزينة','s',{'':'ليس خزينة',cash:'خزنة',bank:'بنك',wallet:'محفظة'}],['parent','الحساب الأب','par'],['ctl','حساب مراقبة','b'],['hdr','حساب تجميعي','b']],
  cc:[['name','الاسم','t']],
@@ -1228,7 +1241,7 @@ const ET={idc:'بطاقة الرقم القومي',lic:'رخصة',edu:'شهاد�
 const EMS=[
  ['بيانات شخصية',[['name','الاسم بالعربي','t'],['nameEn','الاسم بالإنجليزي','t'],['gender','النوع','s',{m:'ذكر',f:'أنثى'}],['birth','تاريخ الميلاد','d'],['birthPlace','محل الميلاد','t'],['nat','الجنسية','t'],['marital','الحالة الاجتماعية','s',{single:'أعزب',married:'متزوج',div:'مطلق',wid:'أرمل'}],['kids','عدد الأبناء','n'],['natid','الرقم القومي','t'],['idExp','انتهاء البطاقة','d'],['blood','فصيلة الدم','t'],['edu','المؤهل الدراسي','t'],['major','التخصص','t'],['mil','الموقف من التجنيد','s',{na:'غير مطلوب',done:'أدى الخدمة',exempt:'معفى',post:'مؤجل'}]]],
  ['بيانات الاتصال',[['phone','الهاتف','t'],['phone2','هاتف بديل','t'],['email','البريد الإلكتروني','t'],['gov','المحافظة','t'],['addr','العنوان','t'],['emName','اسم جهة الطوارئ','t'],['emPhone','هاتف الطوارئ','t'],['emRel','صلة القرابة','t']]],
- ['البيانات الوظيفية',[['hire','تاريخ التعيين','d'],['ctype','نوع التعاقد','s',{perm:'دائم',temp:'مؤقت',part:'جزئي',trial:'تحت التجربة',proj:'مشروع'}],['trialEnd','انتهاء فترة التجربة','d'],['contEnd','انتهاء العقد','d'],['grade','الدرجة الوظيفية','t'],['loc','مكان العمل','t'],['br','الفرع','ob'],['dir','الإدارة','od'],['dep','القسم','op'],['pos','المسمى الوظيفي (من الهرم الوظيفي)','oj'],['mgr','المدير المباشر','em'],['uid','حساب المستخدم (لاستلام الإشعارات)','us'],['status','الحالة','s',ST]]],
+ ['البيانات الوظيفية',[['hire','تاريخ التعيين','d'],['ctype','نوع التعاقد','s',{perm:'دائم',temp:'مؤقت',part:'جزئي',trial:'تحت التجربة',proj:'مشروع'}],['trialEnd','انتهاء فترة التجربة','d'],['contEnd','انتهاء العقد','d'],['grade','الدرجة الوظيفية','t'],['shift','الوردية (نظام الدوام)','sh'],['loc','مكان العمل','t'],['br','الفرع','ob'],['dir','الإدارة','od'],['dep','القسم','op'],['pos','المسمى الوظيفي (من الهرم الوظيفي)','oj'],['mgr','المدير المباشر','em'],['uid','حساب المستخدم (لاستلام الإشعارات)','us'],['status','الحالة','s',ST]]],
  ['البيانات المالية والتأمينية',[['basic','الراتب الأساسي','n'],['allow','البدلات','n'],['insp','نسبة خصم التأمينات %','n'],['insNo','الرقم التأميني','t'],['insDate','تاريخ بدء التأمين','d'],['payMode','طريقة الصرف','s',{cash:'نقدي',bank:'تحويل بنكي'}],['bank','البنك','t'],['acct','رقم الحساب أو IBAN','t']]]
 ];
 const eOpts=(L,v,lab)=>'<option value="">—</option>'+L.map(x=>`<option value="${x.id}" ${x.id==v?'selected':''}>${esc(lab(x))}</option>`).join('');
@@ -1239,6 +1252,7 @@ function empInp(q,e){
   if(t=='od')return `<select id="${id}">${eOpts(OD(),v,x=>oN(x.br)+' / '+x.name)}</select>`;
   if(t=='op')return `<select id="${id}">${eOpts(OP(),v,x=>oN(x.dir)+' / '+x.name)}</select>`;
   if(t=='oj')return `<select id="${id}">${eOpts(OJ(),v,x=>x.name)}</select>`;
+  if(t=='sh')return `<select id="${id}">${eOpts(db.hr.filter(x=>x.k=='shift'),v,x=>x.name+' ('+x.start+' - '+x.end+')')}</select>`;
   if(t=='em')return `<select id="${id}">${eOpts(db.emp.filter(y=>y.id!=e.id),v,x=>x.name)}</select>`;
   if(t=='us')return `<select id="${id}"><option value="">—</option>${db.profiles.map(u=>`<option value="${u.id}" ${u.id==v?'selected':''}>${esc(u.name||u.email)}</option>`).join('')}</select>`;
   return `<input id="${id}" type="${t=='n'?'number':t=='d'?'date':'text'}" ${t=='n'?'step="0.01"':''} value="${esc(v)}">`;
@@ -1252,7 +1266,7 @@ function drawBc(){const e=db.emp.find(x=>x.id==hrE),el=$('#ebc');if(e&&el&&windo
 function bcSvg(code){if(!window.JsBarcode)return esc(code);const sv=document.createElementNS('http://www.w3.org/2000/svg','svg');JsBarcode(sv,code,{format:'CODE128',height:44,width:1.6,displayValue:true,fontSize:12,margin:0});return sv.outerHTML}
 function empSaveFile(id){
   const isNew=!db.emp.some(x=>x.id==id),e=isNew?hrNew:db.emp.find(x=>x.id==id),v={};
-  for(const sc of EMS)for(const q of sc[1]){const el=$('#ef2_'+q[0]);v[q[0]]=q[2]=='n'?(+el.value||0):['ob','od','op','oj','em'].includes(q[2])?(+el.value||null):q[2]=='us'?(el.value||null):el.value.trim()}
+  for(const sc of EMS)for(const q of sc[1]){const el=$('#ef2_'+q[0]);v[q[0]]=q[2]=='n'?(+el.value||0):['ob','od','op','oj','em','sh'].includes(q[2])?(+el.value||null):q[2]=='us'?(el.value||null):el.value.trim()}
   if(!v.name)return alert('الاسم مطلوب');
   if(!(v.basic>0))return alert('الراتب الأساسي مطلوب');
   let n=0;for(let x=db.emp.find(y=>y.id==v.mgr);x&&n<100;x=db.emp.find(y=>y.id==x.mgr),n++)if(x.id==id)return alert('المدير المباشر المختار يعمل حلقة في الهيكل التبعي');
@@ -1369,7 +1383,7 @@ function empRow(e){
     if(q[2]=='us')return;
     let v=e[q[0]]??'';
     if(q[2]=='s')v=q[3][v]||'';
-    if(['ob','od','op','oj'].includes(q[2]))v=oN(v);
+    if(['ob','od','op','oj','sh'].includes(q[2]))v=oN(v);
     if(q[2]=='em'){const m=db.emp.find(x=>x.id==v);v=m?empCode(m):''}
     r[q[1]]=v;
   }));
@@ -1405,7 +1419,7 @@ async function empXlIn(ev){
       if(code&&!ex)throw 0;
       const e=ex||{id:nid(),status:'active'},v={};
       for(const sc of EMS)for(const q of sc[1]){
-        if(q[2]=='us'||['ob','od','op','oj','em'].includes(q[2]))continue;
+        if(q[2]=='us'||['ob','od','op','oj','em','sh'].includes(q[2]))continue;
         const c=r[q[1]];if(c===undefined||c==='')continue;
         if(q[2]=='n')v[q[0]]=+c||0;
         else if(q[2]=='d')v[q[0]]=xd(c);
@@ -1416,6 +1430,7 @@ async function empXlIn(ev){
       const bn=sx(r[H1('br')]),dn=sx(r[H1('dir')]),pn=sx(r[H1('dep')]),jn=sx(r[H1('pos')]);
       const bi=getOrg('br',bn,{}),di=getOrg('dir',dn,bi?{br:bi}:{}),pi=getOrg('dep',pn,di?{dir:di}:{}),ji=getOrg('job',jn,{});
       Object.assign(e,v);
+      const sn=sx(r[H1('shift')]);if(sn){const sh=db.hr.find(x=>x.k=='shift'&&x.name==sn);if(sh)e.shift=sh.id}
       if(bi)e.br=bi;if(di)e.dir=di;if(pi){e.dep=pi;e.dept=pn}if(ji){e.pos=ji;e.job=jn}
       if(!ex){db.emp.push(e);empCode(e);newE.push(e)}else up++;
       touched.push(e);pend.push([e,sx(r[H1('mgr')])]);
@@ -1460,6 +1475,157 @@ H.dash=()=>{
   <div class="card"><h3>الهيكل الإداري (فروع ← إدارات ← أقسام)</h3>${adminTree()}</div>
   <div class="card"><h3>الهرم الوظيفي</h3>${posTree()}</div>
   <div class="card" id="orgc"><div class="row np"><h3 style="margin:0">الشجرة التنظيمية (المدير المباشر)</h3><button class="b" onclick="prSel('#orgc','الهيكل التنظيمي للمنشأة',0)">طباعة</button></div>${mgrTree()}</div>`;
+};
+
+/* ====== الحضور والانصراف والموافقات ====== */
+const WT={off:'مكتب',on:'أونلاين',fld:'خارجي'},AS={p:'حاضر',a:'غياب بدون إذن',v:'إجازة معتمدة',h:'عطلة رسمية',w:'إجازة أسبوعية'};
+const AT0={start:'09:00',end:'17:00',grace:10,weekend:[5,6],lateOn:false,lateFld:false,early:true};
+const attCfg=()=>Object.assign({},AT0,(db.hr.find(x=>x.k=='attcfg')||{}).cfg||{});
+const shiftOf=e=>{const c=attCfg(),s=e.shift&&db.hr.find(x=>x.id==e.shift&&x.k=='shift');return s?{...c,start:s.start,end:s.end,grace:+s.grace||0}:c};
+const tmin=t=>{if(t===''||t==null)return null;if(typeof t=='number')return Math.round((t%1)*1440);const m=String(t).match(/(\d{1,2}):(\d{2})/);return m?+m[1]*60+ +m[2]:null};
+const hhmm=n=>String(Math.floor(n/60)).padStart(2,'0')+':'+String(n%60).padStart(2,'0'),ld=()=>ymd(new Date()),isHol=d=>db.hr.some(x=>x.k=='hol'&&x.date==d);
+let attM=new Date().toISOString().slice(0,7);
+const updRec=(t,o)=>sb.from(t).update({data:o}).eq('id',o.id).then(r=>{if(r.error)alert(r.error.message)});
+function ntfTo(uid,msg,go_){const r={id:nid(),k:'ntf',uid,msg,d:today(),by:me.name||me.email,seen:false,go:go_||null};db.ntf.push(r);put('ntf',r);nbUpd();return r}
+const subOpts=x=>'<option value="">— اختر من يستلم الشغل —</option>'+(x.cands||db.emp.filter(e=>e.status=='active'&&e.id!=x.eid).map(e=>({id:e.id,name:e.name}))).map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('');
+function lvDecide(id,st){
+  const r=db.hr.find(x=>x.id==id),en=r.en||eN(r.eid);let sub=null,note='';
+  if(st=='ok'){
+    sub=+$('#sub_'+id).value||null;
+    if(!sub)return alert('لازم تختار الموظف اللي هيستلم الشغل قبل الموافقة على الإجازة. بدون كده الإجازة مش بتتقبل.');
+    if(can('hr')&&LB[r.type]&&r.days>lbal(r.eid,r.type))return alert('الرصيد المتبقي لا يكفي لهذه الإجازة');
+  }else{const n=prompt('سبب الرفض (اختياري)');if(n===null)return;note=n}
+  const c=(r.cands||db.emp.map(e=>({id:e.id,name:e.name,uid:e.uid}))).find(x=>x.id==sub)||{};
+  Object.assign(r,{st,sub,subName:c.name||'',by:me.name||me.email,note,decided:today()});updRec('hr',r);
+  if(st=='ok'&&c.uid)ntfTo(c.uid,'تم إسناد شغل '+en+' إليك خلال إجازته من '+r.from+' إلى '+r.to,null);
+  ntfTo(null,(st=='ok'?'تمت الموافقة':'تم رفض')+' على إجازة '+en+' من '+r.from+' إلى '+r.to+(st=='ok'?' والشغل مسند إلى '+r.subName:'')+(note?' — '+note:'')+' بواسطة '+(me.name||me.email),null);
+  go(cur);
+}
+function bonusDecide(id,st){
+  const r=db.hr.find(x=>x.id==id);
+  if(st=='no'){const n=prompt('سبب الرفض (اختياري)');if(n===null)return;r.note=n}
+  r.ap=st;r.by=me.name||me.email;r.decided=today();updRec('hr',r);
+  ntfTo(null,(st=='ok'?'تمت الموافقة':'تم رفض')+' على مكافأة '+f(r.amt)+' للموظف '+(r.en||eN(r.eid))+' ('+r.m+') بواسطة '+(me.name||me.email),null);
+  go(cur);
+}
+function attFill(r){
+  const e=db.emp.find(x=>x.id==r.eid);if(!e)return;
+  const c=shiftOf(e),s=tmin(c.start),en=tmin(c.end),i=tmin(r.in),o=tmin(r.out),ap=r.wt=='on'?c.lateOn:r.wt=='fld'?c.lateFld:true;
+  r.st='p';r.late=0;r.early=0;r.hours=0;
+  if(i!==null&&ap&&i>s+c.grace)r.late=i-s;
+  if(o!==null&&ap&&c.early&&o<en)r.early=en-o;
+  if(i!==null&&o!==null&&o>i)r.hours=r2((o-i)/60);
+}
+function attPersist(L){for(let i=0;i<L.length;i+=400)sb.from('hr').upsert(L.slice(i,i+400).map(o=>({id:o.id,data:o}))).then(r=>{if(r.error)alert(r.error.message)})}
+function attProcess(m){
+  const[y,mo]=m.split('-').map(Number),dn=new Date(y,mo,0).getDate(),td=ld(),out=[];
+  db.emp.filter(e=>e.status=='active').forEach(e=>{
+    const c=shiftOf(e);
+    for(let d=1;d<=dn;d++){
+      const ds=m+'-'+String(d).padStart(2,'0');if(ds>td)break;if(e.hire&&ds<e.hire)continue;
+      let r=db.hr.find(x=>x.k=='att'&&x.eid==e.id&&x.d==ds);
+      if(r&&r.src===undefined)continue;
+      if(r&&r.in){attFill(r);out.push(r);continue}
+      const wd=new Date(y,mo-1,d).getDay(),lv=db.hr.find(x=>x.k=='lv'&&x.eid==e.id&&x.st=='ok'&&x.from<=ds&&ds<=x.to);
+      const st=c.weekend.includes(wd)?'w':isHol(ds)?'h':lv?'v':'a';
+      if(!r){if(st=='w'||st=='h')continue;r={id:nid(),k:'att',eid:e.id,d:ds,src:'auto'};db.hr.push(r)}
+      Object.assign(r,{st,late:0,early:0,hours:0});out.push(r);
+    }
+  });
+  attPersist(out);
+  const R=db.hr.filter(x=>x.k=='att'&&x.d.startsWith(m));
+  return{absent:R.filter(x=>x.st=='a').length,late:R.filter(x=>x.late>0).length};
+}
+function attRecalc(){
+  if(!confirm('احتساب الغياب والتأخير للشهر '+attM+'؟ أي يوم عمل ما فيهوش بصمة ولا إجازة معتمدة بيتحسب غياب بدون إذن.'))return;
+  const r=attProcess(attM);alert('تم الاحتساب: '+r.absent+' يوم غياب بدون إذن، و'+r.late+' يوم تأخير');go('hr');
+}
+function attTpl(){
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet([{'كود الموظف':'E0001','التاريخ':attM+'-01','الحضور':'09:05','الانصراف':'17:00','نوع العمل':'مكتب'},{'كود الموظف':'E0002','التاريخ':attM+'-01','الحضور':'09:30','الانصراف':'16:30','نوع العمل':'أونلاين'}]),'الحضور');
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['تعليمات'],['صف لكل موظف في اليوم. لو جهاز البصمة بيطلّع بصمات كتير، حط الأوقات في عمود الوقت وهيؤخذ أول وقت حضور وآخر وقت انصراف.'],['نوع العمل: مكتب أو أونلاين أو خارجي (الافتراضي مكتب).'],['الأوقات بصيغة HH:MM، والتواريخ YYYY-MM-DD.'],['بعد الرفع بيتم احتساب التأخير والانصراف المبكر والغياب بدون إذن تلقائيًا حسب الدوام والإجازات المعتمدة.']]),'تعليمات');
+  xl(wb,'نموذج-الحضور');
+}
+async function attXlIn(ev){
+  const file=ev.target.files[0];if(!file)return;
+  let rows;try{const wb=XLSX.read(await file.arrayBuffer());rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''})}catch(e){return alert('تعذر قراءة الملف')}
+  if(!rows.length||!('كود الموظف' in rows[0])||!('التاريخ' in rows[0]))return alert('الملف لا يطابق النموذج. حمّل النموذج واستخدمه.');
+  const WR={'مكتب':'off','أونلاين':'on','خارجي':'fld'},sx=v=>String(v).trim(),G={},er=[];
+  rows.forEach((r,i)=>{
+    const e=db.emp.find(x=>x.code==sx(r['كود الموظف']));if(!e||r['التاريخ']===''){er.push(i+2);return}
+    const d=xd(r['التاريخ']),k=e.id+'|'+d,g=G[k]=G[k]||{e,d,ti:[],to:[],ta:[],wt:''};
+    const a=tmin(r['الحضور']),b=tmin(r['الانصراف']),c=tmin(r['الوقت']);
+    if(a!==null)g.ti.push(a);if(b!==null)g.to.push(b);if(c!==null)g.ta.push(c);
+    const w=WR[sx(r['نوع العمل'])]||'';if(w)g.wt=w;
+  });
+  const months=new Set();let n=0;
+  Object.values(G).forEach(g=>{
+    const all=[...g.ti,...g.to,...g.ta],i=g.ti.length?Math.min(...g.ti):(all.length?Math.min(...all):null),o=g.to.length?Math.max(...g.to):(all.length>1?Math.max(...all):null);
+    if(i===null){er.push(g.e.name+' '+g.d);return}
+    let r=db.hr.find(x=>x.k=='att'&&x.eid==g.e.id&&x.d==g.d);
+    if(!r){r={id:nid(),k:'att',eid:g.e.id,d:g.d};db.hr.push(r)}
+    Object.assign(r,{in:hhmm(i),out:o!==null&&o>i?hhmm(o):'',wt:g.wt||r.wt||'off',src:'xl'});months.add(g.d.slice(0,7));n++;
+  });
+  let ab=0,lt=0;months.forEach(m=>{const x=attProcess(m);ab+=x.absent;lt+=x.late});
+  ev.target.value='';
+  alert('تم استيراد '+n+' يوم حضور وانصراف'+(months.size?'\nبعد الاحتساب للشهور المرفوعة: '+lt+' يوم تأخير، و'+ab+' يوم غياب بدون إذن':'')+(er.length?'\nصفوف تم تخطيها: '+er.slice(0,20).join('، '):''));
+  if(months.size)attM=[...months].sort().pop();
+  go('hr');
+}
+function attXlOut(){
+  const wb=XLSX.utils.book_new();
+  document.querySelectorAll('#attrep table,#attdet table').forEach((t,i)=>XLSX.utils.book_append_sheet(wb,XLSX.utils.table_to_sheet(t),['ملخص الشهر','التفاصيل'][i]||'جدول'+i));
+  xl(wb,'حضور-'+attM);
+}
+function attCfgSave(){
+  let r=db.hr.find(x=>x.k=='attcfg');if(!r){r={id:nid(),k:'attcfg'};db.hr.push(r)}
+  r.cfg={start:$('#as_s').value||'09:00',end:$('#as_e').value||'17:00',grace:+$('#as_g').value||0,weekend:[...document.querySelectorAll('.as_w:checked')].map(x=>+x.value),lateOn:$('#as_o').checked,lateFld:$('#as_f').checked,early:$('#as_y').checked};
+  put('hr',r);alert('تم حفظ إعدادات الدوام');go('hr');
+}
+function shAdd(){const n=$('#sh_n').value.trim();if(!n)return alert('أدخل اسم الوردية');const r={id:nid(),k:'shift',name:n,start:$('#sh_s').value,end:$('#sh_e').value,grace:+$('#sh_g').value||0};db.hr.push(r);put('hr',r);go('hr')}
+function holAdd(){const d=$('#hl_d').value;if(!d)return alert('اختر التاريخ');const r={id:nid(),k:'hol',date:d,name:$('#hl_n').value.trim()};db.hr.push(r);put('hr',r);go('hr')}
+function scanPunch(){
+  const code=$('#sc_c').value.trim(),e=db.emp.find(x=>x.code==code),box=$('#sc_r');$('#sc_c').value='';
+  if(!code)return;
+  if(!e||e.status!='active'){box.innerHTML='<div class="card" style="border-color:#b3261e"><b style="color:#b3261e">كود غير معروف أو موظف غير نشط: '+esc(code)+'</b></div>';return}
+  const d=ld(),now=new Date(),hm=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+  let r=db.hr.find(x=>x.k=='att'&&x.eid==e.id&&x.d==d),act='';
+  if(!r){r={id:nid(),k:'att',eid:e.id,d,src:'bc',wt:$('#sc_w').value,in:hm};db.hr.push(r);act='حضور'}
+  else if(!r.in){Object.assign(r,{in:hm,src:'bc',wt:$('#sc_w').value});act='حضور'}
+  else if(tmin(hm)>tmin(r.in)){r.out=hm;act='انصراف'}
+  else{box.innerHTML='<div class="card"><b>تم تسجيل الحضور بالفعل الآن</b></div>';return}
+  attFill(r);put('hr',r);
+  box.innerHTML=`<div class="card" style="border-color:#1b7f4b"><div class="row" style="align-items:center">${e.photo?`<img src="${e.photo}" style="width:70px;height:84px;object-fit:cover;border-radius:6px">`:''}<div><h3 style="margin:0">${esc(e.name)}</h3><div>تم تسجيل <b>${act}</b> الساعة <b>${hm}</b> (${WT[r.wt]||''})</div>${r.late?`<div style="color:#c77700">تأخير ${r.late} دقيقة</div>`:''}${act=='انصراف'&&r.early?`<div style="color:#c77700">انصراف مبكر ${r.early} دقيقة</div>`:''}</div></div></div>`;
+  const tb=$('#sc_t');if(tb)tb.innerHTML=todayTbl();
+  const inp=$('#sc_c');if(inp)inp.focus();
+}
+const todayTbl=()=>tbl(['الموظف','حضور','انصراف','نوع العمل','تأخير','ساعات'],db.hr.filter(x=>x.k=='att'&&x.d==ld()&&x.in).map(x=>[esc(eN(x.eid)),x.in,x.out||'',WT[x.wt]||'',x.late||'',x.hours||'']));
+async function camScan(){
+  if(!('BarcodeDetector' in window))return alert('المتصفح ده مش بيدعم قراءة الباركود بالكاميرا. استخدم قارئ باركود أو اكتب الكود.');
+  const v=$('#sc_v');v.style.display='block';
+  try{v.srcObject=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});await v.play()}catch(e){return alert('تعذر تشغيل الكاميرا')}
+  const bd=new BarcodeDetector({formats:['code_128']});let last='',lt=0;
+  const loop=async()=>{
+    if(!$('#sc_v')||$('#sc_v')!==v){v.srcObject&&v.srcObject.getTracks().forEach(t=>t.stop());return}
+    try{const r=await bd.detect(v);if(r.length&&(r[0].rawValue!=last||Date.now()-lt>5000)){last=r[0].rawValue;lt=Date.now();$('#sc_c').value=last;scanPunch()}}catch(e){}
+    setTimeout(loop,400);
+  };loop();
+}
+H.scan=()=>`<div class="card"><h3>تسجيل الحضور والانصراف بالباركود</h3><div class="row"><label>نوع العمل<select id="sc_w">${Object.keys(WT).map(k=>`<option value="${k}">${WT[k]}</option>`).join('')}</select></label><label style="flex:1;min-width:220px">امسح باركود الموظف أو اكتب كوده ثم Enter<input id="sc_c" autofocus autocomplete="off" onkeydown="if(event.key=='Enter'){scanPunch();event.preventDefault()}" style="width:100%;font-size:20px"></label><button class="b y" onclick="scanPunch()">تسجيل</button><button class="b" onclick="camScan()">📷 الكاميرا</button></div><video id="sc_v" muted playsinline style="display:none;max-width:320px;margin-top:8px"></video><small>أول مسح في اليوم = حضور، وأي مسح بعده = انصراف (آخر مسح هو الانصراف). بيتحسب التأخير تلقائيًا حسب دوام الموظف.</small><div id="sc_r"></div></div><div class="card"><h3>حركات اليوم</h3><div id="sc_t">${todayTbl()}</div></div>`;
+H.attm=()=>{
+  const R=db.hr.filter(x=>x.k=='att'&&x.d.startsWith(attM)),E=db.emp.filter(e=>e.status=='active');
+  const sum=E.map(e=>{const r=R.filter(x=>x.eid==e.id),pr=r.filter(x=>x.st=='p');return[esc(e.name),esc(e.code||''),pr.length,r.reduce((s,x)=>s+(+x.late||0),0),r.reduce((s,x)=>s+(+x.early||0),0),r.filter(x=>x.st=='a').length,r.filter(x=>x.st=='v').length,pr.filter(x=>x.wt=='on').length,pr.filter(x=>x.wt=='fld').length,f(r.reduce((s,x)=>s+(+x.hours||0),0))]});
+  return `<div class="card np"><h3>حضور الشهر</h3><div class="row"><label>الشهر<input type="month" value="${attM}" onchange="attM=this.value;go('hr')"></label><button class="b" onclick="attTpl()">نموذج Excel</button><label class="b" style="display:inline-block;cursor:pointer">رفع حضور الشهر<input type="file" accept=".xlsx,.xls,.csv" style="display:none" onchange="attXlIn(event)"></label><button class="b y" onclick="attRecalc()">احتساب التأخير والغياب</button><button class="b" onclick="attXlOut()">تصدير التقرير Excel</button></div><small>الغياب بدون إذن = يوم عمل ما فيهوش بصمة ولا إجازة معتمدة ولا عطلة. التأخير والانصراف المبكر بيتحسبوا حسب إعدادات الدوام ونوع العمل.</small></div>
+  <div class="card" id="attrep"><h3>ملخص الشهر لكل موظف</h3>${tbl(['الموظف','الكود','أيام الحضور','دقائق التأخير','دقائق الانصراف المبكر','غياب بدون إذن','إجازات معتمدة','أيام أونلاين','أيام خارجي','ساعات العمل'],sum)}</div>
+  <div class="card" id="attdet"><h3>السجل التفصيلي</h3>${tbl(['التاريخ','الموظف','حضور','انصراف','نوع العمل','الحالة','تأخير','انصراف مبكر','ساعات'],R.slice().sort((a,b)=>a.d<b.d?1:a.d>b.d?-1:0).slice(0,600).map(x=>[x.d,esc(eN(x.eid)),x.in||'',x.out||'',WT[x.wt]||'',AS[x.st]||(x.st=='a'?'غياب':'حاضر'),x.late||'',x.early||'',x.hours||'']))}</div>`;
+};
+H.attset=()=>{
+  const c=attCfg(),WD=['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
+  return `<div class="card"><h3>ساعات الدوام الافتراضية</h3><div class="row"><label>بداية الدوام<input id="as_s" type="time" value="${c.start}"></label><label>نهاية الدوام<input id="as_e" type="time" value="${c.end}"></label><label>سماح التأخير (دقيقة)<input id="as_g" type="number" value="${c.grace}" style="width:100px"></label></div>
+  <div class="row">${WD.map((d,i)=>`<label style="flex-direction:row;align-items:center;gap:4px"><input type="checkbox" class="as_w" value="${i}" ${c.weekend.includes(i)?'checked':''}>${d} إجازة</label>`).join('')}</div>
+  <div class="row"><label style="flex-direction:row;align-items:center;gap:4px"><input type="checkbox" id="as_o" ${c.lateOn?'checked':''}>احتساب التأخير على العمل أونلاين</label><label style="flex-direction:row;align-items:center;gap:4px"><input type="checkbox" id="as_f" ${c.lateFld?'checked':''}>احتساب التأخير على العمل الخارجي</label><label style="flex-direction:row;align-items:center;gap:4px"><input type="checkbox" id="as_y" ${c.early?'checked':''}>احتساب الانصراف المبكر</label></div><button class="b y" onclick="attCfgSave()">حفظ الإعدادات</button></div>
+  <div class="card"><h3>ورديات أخرى</h3><div class="row"><label>الاسم<input id="sh_n"></label><label>من<input id="sh_s" type="time" value="09:00"></label><label>إلى<input id="sh_e" type="time" value="17:00"></label><label>سماح<input id="sh_g" type="number" value="10" style="width:80px"></label><button class="b y" onclick="shAdd()">إضافة وردية</button></div>${tbl(['الوردية','من','إلى','سماح'],db.hr.filter(x=>x.k=='shift').map(x=>[esc(x.name),x.start,x.end,x.grace]))}<small>تحدد وردية كل موظف من ملفه.</small></div>
+  <div class="card"><h3>العطلات الرسمية</h3><div class="row"><label>التاريخ<input id="hl_d" type="date"></label><label>الاسم<input id="hl_n"></label><button class="b y" onclick="holAdd()">إضافة</button></div>${tbl(['التاريخ','العطلة'],db.hr.filter(x=>x.k=='hol').sort((a,b)=>a.date<b.date?-1:1).map(x=>[x.date,esc(x.name)]))}</div>`;
 };
 
 /* ====== التقارير ====== */
@@ -1578,7 +1744,7 @@ setup(){
   <button class="b y" onclick="expAll()">تصدير كل البيانات إلى Excel</button><p><small>حمّل النموذج واملأه ثم ارفعه كما هو. الصفوف الخاطئة تُتخطى ويظهر لك رقمها. تصدير التقارير من شاشة التقارير.</small></p></div>`;
 },
 hr(){
-  const T={dash:'لوحة الموارد البشرية',emp:'الموظفون',org:'الهيكل التنظيمي',att:'الحضور',lv:'الإجازات',ln:'السلف والمكافآت',pay:'الرواتب'};
+  const T={dash:'لوحة الموارد البشرية',emp:'الموظفون',org:'الهيكل التنظيمي',attm:'حضور الشهر',scan:'الحضور بالباركود',att:'حضور يدوي',attset:'إعدادات الدوام',lv:'الإجازات',ln:'السلف والمكافآت',pay:'الرواتب'};
   return `<div class="card np"><div class="row">${Object.keys(T).map(k=>`<button class="b ${k==hrt?'y':''}" onclick="hrt='${k}';go('hr')">${T[k]}</button>`).join('')}</div></div>`+H[hrt]();
 },
 cash(){
@@ -1640,7 +1806,13 @@ fleet(){
 },
 ntf(){
   const L=myNtf().slice().sort((a,b)=>a.id<b.id?1:-1);
-  return `<div class="card"><h3>الإشعارات</h3>${tbl(['التاريخ','الرسالة','من',''],L.map(n=>[n.d,n.seen?esc(n.msg):'<b>'+esc(n.msg)+'</b>',esc(n.by),n.seen?'تم الاطلاع':`<button class="b y" onclick="ntfSeen(${n.id})">تم الاطلاع</button>`]))}</div>`;
+  return `<div class="card"><h3>الإشعارات</h3>${tbl(['التاريخ','الرسالة','من',''],L.map(n=>[n.d,n.seen?esc(n.msg):'<b>'+esc(n.msg)+'</b>',esc(n.by),(n.go?`<button class="b" onclick="go('${n.go}')">فتح</button> `:'')+(n.seen?'تم الاطلاع':`<button class="b y" onclick="ntfSeen(${n.id})">تم الاطلاع</button>`)]))}</div>`;
+},
+appr(){
+  const uid=me.id,L=db.hr.filter(x=>x.k=='lv'&&x.mgrUid==uid),B=db.hr.filter(x=>x.k=='adj'&&x.dirUid==uid),pl=L.filter(x=>x.st=='pending'),pb=B.filter(x=>x.ap=='pending');
+  return `<div class="card"><h3>طلبات إجازة بانتظار موافقتي (${pl.length})</h3>${tbl(['الموظف','النوع','من','إلى','الأيام','يستلم الشغل',''],pl.map(x=>[esc(x.en),LT[x.type],x.from,x.to,x.days,`<select id="sub_${x.id}">${subOpts(x)}</select>`,`<button class="b y" onclick="lvDecide(${x.id},'ok')">موافقة</button> <button class="b d" onclick="lvDecide(${x.id},'no')">رفض</button>`]))}<small>لازم تحدد موظفًا يستلم شغل صاحب الإجازة، وبدون كده مش هتقدر توافق.</small></div>
+  <div class="card"><h3>طلبات صرف مكافآت بانتظار موافقتي (${pb.length})</h3>${tbl(['الموظف','الشهر','المبلغ','البيان',''],pb.map(x=>[esc(x.en),x.m,f(x.amt),esc(x.desc),`<button class="b y" onclick="bonusDecide(${x.id},'ok')">موافقة</button> <button class="b d" onclick="bonusDecide(${x.id},'no')">رفض</button>`]))}</div>
+  <div class="card"><h3>آخر قراراتي</h3>${tbl(['النوع','الموظف','التفاصيل','القرار'],[...L.filter(x=>x.st!='pending').map(x=>['إجازة',esc(x.en),x.from+' ← '+x.to,x.st=='ok'?'موافقة (يستلم: '+esc(x.subName)+')':'مرفوضة']),...B.filter(x=>x.ap!='pending').map(x=>['مكافأة',esc(x.en),f(x.amt),x.ap=='ok'?'موافقة':'مرفوضة'])])}</div>`;
 },
 journal(){
   const o=ACC.filter(postable).map(a=>`<option value="${a[0]}">${a[0]} ${a[1]}</option>`).join('');
