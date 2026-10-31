@@ -64,8 +64,8 @@ const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const f=n=>Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
 const r2=x=>Math.round(x*100)/100,today=()=>new Date().toISOString().slice(0,10);
-const M=['dash','ntf','appr','find','pos','sales','purchases','cash','reps','rep','fleet','inventory','setup','hr','journal','reports','tax','edit','users'];
-const MN={dash:'الرئيسية',pos:'نقاط البيع',sales:'المبيعات',purchases:'المشتريات',cash:'الخزينة',reps:'إدارة المناديب',rep:'شاشة المندوب',fleet:'إدارة الأسطول',inventory:'المخازن',setup:'التهيئة',hr:'الموارد البشرية',edit:'تعديل البيانات',find:'بحث شامل',ntf:'الإشعارات',appr:'الموافقات',tax:'الضرائب',journal:'القيود',reports:'التقارير',users:'المستخدمون'};
+const M=['dash','ntf','appr','myatt','drvapp','find','pos','sales','purchases','cash','reps','rep','fleet','inventory','setup','hr','journal','reports','tax','edit','users'];
+const MN={dash:'الرئيسية',pos:'نقاط البيع',sales:'المبيعات',purchases:'المشتريات',cash:'الخزينة',reps:'إدارة المناديب',rep:'شاشة المندوب',fleet:'إدارة الأسطول',inventory:'المخازن',setup:'التهيئة',hr:'الموارد البشرية',edit:'تعديل البيانات',find:'بحث شامل',ntf:'الإشعارات',appr:'الموافقات',myatt:'حضوري',drvapp:'شاشة السائق',tax:'الضرائب',journal:'القيود',reports:'التقارير',users:'المستخدمون'};
 const ACC=[['1000','النقدية','A','cash'],['1010','مقبوضات البطاقات','A','bank'],['1020','المحافظ الإلكترونية','A','wallet'],['1100','العملاء','A',null,null,true],['1400','سلف الموظفين','A'],['1200','المخزون','A',null,null,true],['1300','ضريبة مدخلات','A'],['1320','ضرائب مخصومة لدى العملاء','A'],['2000','الموردون','L',null,null,true],['2100','ضريبة مخرجات','L'],['2110','ضريبة جدول مستحقة','L'],['2150','ضريبة خصم من المنبع مستحقة','L'],['2200','رواتب مستحقة','L'],['2300','تأمينات مستحقة','L'],['3000','رأس المال','E'],['3100','أرصدة افتتاحية','E'],['4000','إيرادات المبيعات','R'],['4100','إيرادات أخرى','R'],['5000','تكلفة البضاعة المباعة','X'],['5100','مصروفات عمومية','X'],['5200','الرواتب والأجور','X'],['5250','عمولات المناديب','X'],['5410','وقود وزيوت','X'],['5420','صيانة وقطع غيار المركبات','X'],['5430','مصروفات مركبات أخرى','X'],['5300','إيجار','X'],['5400','كهرباء ومياه واتصالات','X'],['5500','مواصلات وانتقالات','X'],['5600','صيانة ونظافة','X']];
 const PA={cash:'1000',card:'1010',wallet:'1020'};
 let lastInv=0,hrt='dash',attD=new Date().toISOString().slice(0,10),payM=new Date().toISOString().slice(0,7);
@@ -73,7 +73,7 @@ const TY={A:'أصل',L:'التزام',E:'حقوق ملكية',R:'إيراد',X:'
 const npf=b=>-ACC.filter(a=>'RX'.includes(a[2])).reduce((s,a)=>s+b[a[0]],0);
 const KEY='acc_db_v1';
 let db,me,cur='dash',cart=[],pcart=[],posc=[];
-const can=m=>me&&(m=='find'||m=='ntf'||m=='appr'||(m=='edit'?!!me.is_admin:(me.is_admin||(me.perms||[]).includes(m))));
+const can=m=>me&&(m=='find'||m=='ntf'||m=='appr'||(m=='myatt'?!!myEmp():m=='drvapp'?(!!me.is_admin||!!myDrv()):m=='edit'?!!me.is_admin:(me.is_admin||(me.perms||[]).includes(m))));
 const pn=id=>(db.products.find(p=>p.id==id)||{}).name||'؟';
 const tbl=(h,r)=>`<table><tr>${h.map(x=>`<th>${x}</th>`).join('')}</tr>${r.map(x=>`<tr>${x.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}</table>`;
 
@@ -787,7 +787,7 @@ function rColSave(pid){
 
 /* ====== تعديل البيانات (للمدير) ====== */
 let edT='acc';
-const MU=M.filter(m=>m!='edit'&&m!='find'&&m!='ntf'&&m!='appr'),SYS=['1000','1010','1020','1100','1200','1300','1400','2000','2100','2200','2300','3000','3100','4000','5000','5100','5200','5250','1320','2110','2150'];
+const MU=M.filter(m=>m!='edit'&&m!='find'&&m!='ntf'&&m!='appr'&&m!='myatt'&&m!='drvapp'),SYS=['1000','1010','1020','1100','1200','1300','1400','2000','2100','2200','2300','3000','3100','4000','5000','5100','5200','5250','1320','2110','2150'];
 const EF={
  acc:[['name','الاسم','t'],['type','النوع','s',TY],['kind','نوع الخزينة','s',{'':'ليس خزينة',cash:'خزنة',bank:'بنك',wallet:'محفظة'}],['parent','الحساب الأب','par'],['ctl','حساب مراقبة','b'],['hdr','حساب تجميعي','b']],
  cc:[['name','الاسم','t']],
@@ -827,6 +827,7 @@ function ed(t,k){
     else if(f[2]=='par')h=`<select id="${id}"><option value="">بدون أب</option>${ACC.filter(a=>a[6]&&a[0]!=k).map(a=>`<option value="${a[0]}" ${a[0]==v?'selected':''}>${esc(a[1])} (${TY[a[2]]})</option>`).join('')}</select>`;
     else if(f[2]=='grp')h=`<select id="${id}"><option value="">بدون مجموعة</option>${db.grp.map(g=>`<option value="${g.id}" ${g.id==v?'selected':''}>${esc(g.name)}</option>`).join('')}</select>`;
     else if(f[2]=='veh'||f[2]=='drv')h=`<select id="${id}">${db.fl.filter(x=>x.k==f[2]).map(x=>`<option value="${x.id}" ${x.id==v?'selected':''}>${esc(x.plate||x.name)}</option>`).join('')}</select>`;
+    else if(f[2]=='us')h=`<select id="${id}"><option value="">—</option>${usOpts(v)}</select>`;
     else if(f[2]=='cc')h=`<select id="${id}">${ccO().replace('value="'+v+'"','value="'+v+'" selected')}</select>`;
     else if(f[2]=='b')return `<label style="flex-direction:row;align-items:center;gap:4px"><input type="checkbox" id="${id}" ${v?'checked':''}>${f[1]}</label>`;
     else h=`<input id="${id}" type="${f[2]=='n'?'number':f[2]=='d'?'date':'text'}" ${f[2]=='n'?'step="0.01"':''} value="${esc(v)}">`;
@@ -894,7 +895,7 @@ function revJe(id){
 }
 
 /* ====== إدارة الأسطول ====== */
-const FK=['veh','drv','fuel','mnt','plan','trip','exp','doc','chk'];
+const FK=['veh','drv','fuel','mnt','plan','trip','exp','doc','chk','task','dx','ctx','hov'];
 let flt='dash',fm=new Date().toISOString().slice(0,7);
 const FL=k=>db.fl.filter(x=>x.k==k),vObj=id=>db.fl.find(x=>x.id==id&&x.k=='veh'),vN=id=>{const v=vObj(id);return v?v.plate+(v.make?' - '+v.make:''):'؟'},dN=id=>(db.fl.find(x=>x.id==id&&x.k=='drv')||{}).name||'';
 const vO=()=>FL('veh').map(v=>`<option value="${v.id}">${esc(v.plate)} ${esc(v.make||'')}</option>`).join(''),dO=()=>FL('drv').filter(d=>d.status!='off').map(d=>`<option value="${d.id}">${esc(d.name)}</option>`).join('');
@@ -903,7 +904,7 @@ const EC={fine:'مخالفة مرورية',acc:'حادث',ins:'تأمين',lic:'
 const CK=['الإطارات','الزيوت والمياه','الفرامل','الإضاءة','الزجاج والمساحات','نظافة المركبة','أوراق المركبة','طفاية الحريق','حقيبة الإسعاف'];
 const FF={
  veh:[['plate','اللوحة','t'],['type','النوع','s',VT],['make','الماركة والموديل','t'],['year','سنة الصنع','n'],['vin','رقم الشاسيه','t'],['fuel','نوع الوقود','s',FT3],['tank','سعة الخزان (لتر)','n'],['odo','عداد الكيلومترات الحالي','n'],['status','الحالة','s',VS],['drv','السائق المسؤول','drv'],['cc','مركز التكلفة','cc'],['pdate','تاريخ الشراء','d'],['pcost','قيمة الشراء','n']],
- drv:[['name','الاسم','t'],['phone','الهاتف','t'],['lic','رقم الرخصة','t'],['licCls','درجة الرخصة','t'],['licExp','تاريخ انتهاء الرخصة','d'],['natid','الرقم القومي','t'],['status','الحالة','s',{on:'نشط',off:'موقوف'}]],
+ drv:[['name','الاسم','t'],['phone','الهاتف','t'],['lic','رقم الرخصة','t'],['licCls','درجة الرخصة','t'],['licExp','تاريخ انتهاء الرخصة','d'],['natid','الرقم القومي','t'],['status','الحالة','s',{on:'نشط',off:'موقوف'}],['uid','حساب المستخدم (لشاشة السائق)','us']],
  fuel:[['veh','المركبة','veh'],['drv','السائق','drv'],['d','التاريخ','d'],['odo','قراءة العداد','n'],['liters','اللترات','n'],['amt','إجمالي المبلغ','n'],['stn','المحطة','t'],['pay','الدفع','pay']],
  mnt:[['veh','المركبة','veh'],['d','التاريخ','d'],['odo','قراءة العداد','n'],['mt','النوع','s',{prev:'وقائية',corr:'تصحيحية',tire:'إطارات',oth:'أخرى'}],['desc','الوصف','t'],['vendor','الورشة','t'],['amt','التكلفة','n'],['st','الحالة','s',{done:'تمت',plan:'مجدولة',prog:'جارية'}],['plan','خطة الصيانة المرتبطة','plan'],['pay','الدفع','pay']],
  plan:[['veh','المركبة','veh'],['name','الخدمة (مثلًا تغيير زيت)','t'],['km','كل كم','n'],['days','أو كل يوم','n'],['lastKm','آخر تنفيذ عند كم','n'],['lastD','تاريخ آخر تنفيذ','d']],
@@ -924,6 +925,7 @@ function flInp(q){
   if(t=='drv')return `<select id="${id}"><option value="">—</option>${dO()}</select>`;
   if(t=='cc')return `<select id="${id}">${ccO()}</select>`;
   if(t=='pay')return `<select id="${id}">${vtrs().map(a=>`<option value="${a[0]}">${esc(a[1])}</option>`).join('')}<option value="none">بدون ترحيل محاسبي</option></select>`;
+  if(t=='us')return `<select id="${id}"><option value="">—</option>${db.profiles.map(u=>`<option value="${u.id}">${esc(u.name||u.email)}</option>`).join('')}</select>`;
   if(t=='plan')return `<select id="${id}"><option value="">بدون</option>${FL('plan').map(x=>`<option value="${x.id}">${esc(vN(x.veh))} - ${esc(x.name)}</option>`).join('')}</select>`;
   return `<input id="${id}" type="${t=='n'?'number':t=='d'?'date':'text'}" ${t=='n'?'step="0.01"':''} value="${t=='d'&&!['exp','licExp','pdate','lastD'].includes(q[0])?today():''}">`;
 }
@@ -955,6 +957,7 @@ function flAdd(k){
     if(k=='chk'){r.items=[...document.querySelectorAll('.fl_ck:checked')].map(x=>x.value);r.ok=r.items.length==CK.length}
   }catch(e){return alert(e.message)}
   if(V&&r.odo>(V.odo||0)){V.odo=r.odo;put('inv',V)}
+  if(k=='drv')drvCust(r);
   db.fl.push(r);put('inv',r);save();go('fleet');
 }
 function flSet(id,k,v){const x=db.fl.find(y=>y.id==id);x[k]=v;put('inv',x)}
@@ -976,7 +979,7 @@ function docRenew(id){
 }
 function kmIn(v,m){
   const P=[];
-  db.fl.forEach(x=>{if(x.veh!=v.id)return;if(x.k=='trip'){P.push([x.d,x.so]);if(x.eo)P.push([x.d,x.eo])}else if(x.odo&&x.d)P.push([x.d,x.odo])});
+  db.fl.forEach(x=>{if(x.veh!=v.id)return;if(x.k=='trip'||x.k=='task'){if(x.so)P.push([x.d,x.so]);if(x.eo)P.push([x.d,x.eo])}else if(x.odo&&x.d)P.push([x.d,x.odo])});
   const inM=P.filter(a=>a[0].startsWith(m)).map(a=>a[1]),bf=P.filter(a=>a[0]<m).map(a=>a[1]);
   if(!inM.length)return 0;
   return Math.max(0,Math.max(...inM)-(bf.length?Math.max(...bf):Math.min(...inM)));
@@ -1009,7 +1012,7 @@ function flCardShow(){
   const v=vObj($('#kv').value);if(!v)return;
   const L=db.fl.filter(x=>x.veh==v.id).sort((a,b)=>(a.d||'')<(b.d||'')?1:-1),all=r2(L.filter(x=>x.k!='mnt'||x.st=='done').reduce((s,x)=>s+(+x.amt||0),0));
   const ln=x=>x.k=='fuel'?['وقود',x.liters+' لتر']:x.k=='mnt'?['صيانة',x.desc||'']:x.k=='exp'?[EC[x.cat],x.desc||'']:x.k=='doc'?[DT[x.dt],(x.no||'')+' حتى '+x.exp]:x.k=='trip'?['رحلة',(x.from||'')+' ← '+(x.to||'')]:['فحص',x.ok?'سليمة':'بها ملاحظات'];
-  $('#kvo').innerHTML=tbl(['اللوحة','النوع','العداد','السائق','الحالة','إجمالي التكاليف'],[[esc(v.plate),VT[v.type],f(v.odo),esc(dN(v.drv)),VS[v.status],f(all)]])+tbl(['التاريخ','السجل','التفاصيل','المبلغ','العداد'],L.filter(x=>FK.slice(2).includes(x.k)&&x.k!='plan').map(x=>[x.d||'',ln(x)[0],esc(ln(x)[1]),x.amt?f(x.amt):'',x.odo||x.eo||x.so||'']));
+  $('#kvo').innerHTML=tbl(['اللوحة','النوع','العداد','السائق','الحالة','إجمالي التكاليف'],[[esc(v.plate),VT[v.type],f(v.odo),esc(dN(v.drv)),VS[v.status],f(all)]])+tbl(['التاريخ','السجل','التفاصيل','المبلغ','العداد'],L.filter(x=>['fuel','mnt','exp','doc','trip','chk'].includes(x.k)).map(x=>[x.d||'',ln(x)[0],esc(ln(x)[1]),x.amt?f(x.amt):'',x.odo||x.eo||x.so||'']));
 }
 function flXl(){
   const wb=XLSX.utils.book_new();
@@ -1044,7 +1047,7 @@ veh(){
   <div class="card"><h3>كارت المركبة (كل السجلات والتكاليف)</h3><div class="row"><label>المركبة<select id="kv" onchange="flCardShow()">${vO()}</select></label><button class="b y" onclick="flCardShow()">عرض</button></div><div id="kvo"></div></div>`;
 },
 drv(){
-  return flForm('drv')+`<div class="card">${tbl(['الاسم','الهاتف','رقم الرخصة','الدرجة','انتهاء الرخصة','الحالة'],FL('drv').map(d=>[esc(d.name),esc(d.phone),esc(d.lic),esc(d.licCls),d.licExp?d.licExp+' '+badge(dd(d.licExp)):'',`<select onchange="flSet(${d.id},'status',this.value)"><option value="on" ${d.status!='off'?'selected':''}>نشط</option><option value="off" ${d.status=='off'?'selected':''}>موقوف</option></select>`]))}</div>`;
+  return elig()+flForm('drv')+`<div class="card">${tbl(['الاسم','الهاتف','رقم الرخصة','الدرجة','انتهاء الرخصة','الحالة'],FL('drv').map(d=>[esc(d.name),esc(d.phone),esc(d.lic),esc(d.licCls),d.licExp?d.licExp+' '+badge(dd(d.licExp)):'',`<select onchange="flSet(${d.id},'status',this.value)"><option value="on" ${d.status!='off'?'selected':''}>نشط</option><option value="off" ${d.status=='off'?'selected':''}>موقوف</option></select>`]))}</div>`;
 },
 fuel(){return flForm('fuel')+`<div class="card">${tbl(['التاريخ','المركبة','السائق','لترات','المبلغ','سعر اللتر','العداد','كم منذ آخر تعبئة','كم/لتر','تكلفة الكيلومتر'],fuelRows())}<small>معدل الاستهلاك بيتحسب بين تعبئتين متتاليتين بافتراض ملء الخزان.</small></div>`},
 mnt(){
@@ -1062,6 +1065,158 @@ rep(){
   return `<div class="card np"><div class="row"><label>الشهر<input type="month" value="${fm}" onchange="fm=this.value;go('fleet')"></label><button class="b" onclick="prSel('#flrep','تقرير الأسطول '+fm,0)">طباعة</button><button class="b" onclick="prSel('#flrep','تقرير الأسطول '+fm,1)">حفظ PDF</button><button class="b y" onclick="flXl()">Excel</button></div></div>
   <div class="card" id="flrep"><h3>تكلفة المركبات</h3>${tbl(['المركبة','كم','لترات','وقود','صيانة','أخرى','الإجمالي','تكلفة/كم','كم/لتر'],rows)}<h3>أداء السائقين</h3>${tbl(['السائق','الرحلات','كم الرحلات','لترات الوقود','مخالفات ومصروفات','قيمتها'],dr)}</div>`;
 }};
+
+/* ====== مدير الحركة وشاشة السائق والحضور الذاتي ====== */
+const usOpts=v=>{const L=db.profiles.map(u=>({id:u.id,name:u.name||u.email}));if(v&&!L.some(u=>u.id==v))L.push({id:v,name:'حساب مرتبط'});return L.map(u=>`<option value="${u.id}" ${u.id==v?'selected':''}>${esc(u.name)}</option>`).join('')};
+const WD2=['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
+const TS={new:'جديدة',acc:'استلمها السائق',run:'جارية',done:'منتهية',cancel:'ملغاة'},DC={fuel:'وقود',...EC};
+const onlOk=(e,ds)=>e.onl=='y'&&(!(e.onlDays&&e.onlDays.length)||e.onlDays.includes(new Date(ds+'T12:00:00').getDay()));
+const myEmp=()=>db.emp.find(e=>e.uid&&e.uid==me.id),myDrv=()=>FL('drv').find(x=>x.uid&&x.uid==me.id);
+let dSel=null;const curDrv=()=>myDrv()||FL('drv').find(x=>x.id==dSel)||FL('drv')[0];
+const custBal=d=>r2(FL('ctx').filter(x=>x.drv==d.id).reduce((s,x)=>s+(x.dir=='in'?x.amt:-x.amt),0));
+const drvStat=d=>{const T=FL('task').filter(t=>t.drv==d.id);return T.some(t=>t.st=='run')?'في مهمة':T.some(t=>['new','acc'].includes(t.st))?'مكلّف':'متاح'};
+function goN(x){const[m,t]=x.split(':');if(t)flt=t;go(m)}
+function ntfVeh(e){
+  const us=[...new Set(db.emp.filter(x=>x.fleetRole&&x.fleetRole!='n'&&x.uid).map(x=>x.uid))];
+  const msg='تم السماح للموظف '+e.name+(e.code?' ('+e.code+')':'')+' باستلام مركبة. الرجاء تسجيله كسائق وتسليمه المركبة المناسبة.';
+  (us.length?us:[null]).forEach(u=>ntfTo(u,msg,'fleet:drv',u?0:1));
+}
+function drvCust(d){
+  if(d.cust&&ACC.some(a=>a[0]==d.cust))return d.cust;
+  const code=String(Math.max(1500,...ACC.map(a=>+a[0]).filter(x=>x>=1500&&x<1600))+1),nm='عهدة سائق '+d.name;
+  ACC.push([code,nm,'A']);upAcc({code,name:nm,type:'A'});d.cust=code;put('inv',d);return code;
+}
+function elig(){
+  const L=db.emp.filter(e=>e.canVeh=='y');
+  return `<div class="card"><h3>موظفون مسموح لهم باستلام مركبة (من الموارد البشرية)</h3>${tbl(['الموظف','الكود','الهاتف','الحالة',''],L.map(e=>{const d=FL('drv').find(x=>x.emp==e.id);return[esc(e.name),esc(e.code||''),esc(e.phone||''),d?'مسجل كسائق':'غير مسجل',d?'':`<button class="b y" onclick="drvFromEmp(${e.id})">تسجيل كسائق</button>`]}))}</div>`;
+}
+function drvFromEmp(id){
+  const e=db.emp.find(x=>x.id==id),r={id:nid(),k:'drv',name:e.name,phone:e.phone||'',natid:e.natid||'',lic:'',licCls:'',licExp:'',status:'on',emp:e.id,uid:e.uid||''};
+  drvCust(r);db.fl.push(r);put('inv',r);go('fleet');
+}
+function tkDrv(){const d=FL('drv').find(x=>x.id==+$('#tk_d').value);if(d&&d.veh)$('#tk_v').value=d.veh}
+function taskAdd(){
+  const d=FL('drv').find(x=>x.id==+$('#tk_d').value),V=vObj(+$('#tk_v').value),title=$('#tk_t').value.trim();
+  if(!d||!title)return alert('اختر السائق وأدخل عنوان المهمة');
+  const n=dd(d.licExp);if(n!==null&&n<0)return alert('رخصة السائق منتهية، لا يمكن إسناد مهام له');
+  if(V&&V.status!='ok')return alert('المركبة '+V.plate+' حالتها ليست نشطة');
+  if(FL('task').some(t=>t.drv==d.id&&['acc','run'].includes(t.st))&&!confirm('السائق عنده مهمة جارية. تكمل الإسناد؟'))return;
+  const r={id:nid(),k:'task',uid:d.uid||'',drv:d.id,dn:d.name,veh:V?V.id:null,vn:V?V.plate:'',title,from:$('#tk_f').value.trim(),to:$('#tk_to').value.trim(),d:$('#tk_dt').value||ld(),tm:$('#tk_tm').value,pr:$('#tk_p').value,note:$('#tk_n').value.trim(),st:'new',by:me.name||me.email};
+  db.fl.push(r);put('inv',r);
+  if(d.uid)ntfTo(d.uid,'مهمة جديدة: '+title+' ('+(r.from||'—')+' ← '+(r.to||'—')+') بتاريخ '+r.d+(r.tm?' '+r.tm:''),'drvapp');
+  go('fleet');
+}
+function taskCancel(id){const t=db.fl.find(x=>x.id==id);if(!confirm('إلغاء المهمة؟'))return;t.st='cancel';updRec('inv',t);if(t.uid)ntfTo(t.uid,'تم إلغاء المهمة: '+t.title,'drvapp');go('fleet')}
+function hovAdd(){
+  const V=vObj(+$('#hv_v').value),d=FL('drv').find(x=>x.id==+$('#hv_d').value),out=$('#hv_t').value=='out';
+  if(!V||!d)return alert('اختر المركبة والسائق');
+  if(out){const n=dd(d.licExp);if(n!==null&&n<0)return alert('رخصة السائق منتهية');if(V.status!='ok')return alert('المركبة غير نشطة')}
+  const o=+$('#hv_o').value||0,r={id:nid(),k:'hov',veh:V.id,vn:V.plate,drv:d.id,dn:d.name,type:out?'out':'in',d:ld(),odo:o,fuel:$('#hv_f').value,cond:$('#hv_c').value.trim(),by:me.name||me.email};
+  if(out){V.drv=d.id;d.veh=V.id;d.vehName=V.plate}else{if(V.drv==d.id)V.drv=null;if(d.veh==V.id){d.veh=null;d.vehName=''}}
+  if(o>(V.odo||0))V.odo=o;
+  db.fl.push(r);put('inv',r);put('inv',V);put('inv',d);
+  if(d.uid)ntfTo(d.uid,(out?'تم تسليمك المركبة ':'تم استلام المركبة منك: ')+V.plate,'drvapp');
+  go('fleet');
+}
+function custReturn(id){
+  const d=FL('drv').find(x=>x.id==id),v=custBal(d),pay=vtrs()[0];
+  if(v<=0)return alert('لا يوجد رصيد في العهدة');
+  if(!confirm('توريد '+f(v)+' من عهدة '+d.name+' إلى '+(pay?pay[1]:'الخزنة')+'؟'))return;
+  try{const n=db.je.filter(j=>j.ref.startsWith('TR')).length+1;post(today(),'توريد عهدة السائق '+d.name,[[pay[0],v,0],[d.cust,0,v]],'TR'+n);
+    const x={id:nid(),k:'ctx',uid:d.uid||'',drv:d.id,dir:'out',amt:v,d:ld(),desc:'توريد رصيد العهدة للخزينة',ref:'TR'+n};db.fl.push(x);put('inv',x);save();go('fleet')}catch(e){alert(e.message)}
+}
+function shrink(f,max=1280){return new Promise((ok,no)=>{const im=new Image(),u=URL.createObjectURL(f);im.onload=()=>{const c=document.createElement('canvas'),r=Math.min(1,max/Math.max(im.width,im.height));c.width=im.width*r;c.height=im.height*r;c.getContext('2d').drawImage(im,0,0,c.width,c.height);c.toBlob(b=>{URL.revokeObjectURL(u);ok(b)},'image/jpeg',.75)};im.onerror=()=>no(new Error('الملف ده مش صورة'));im.src=u})}
+async function upPhoto(id,path){const f=$('#'+id).files[0];if(!f)return null;const b=await shrink(f),{error}=await sb.storage.from('fleet-docs').upload(path,b,{contentType:'image/jpeg'});if(error)throw error;return path}
+function dxCat(){const fu=$('#dx_c').value=='fuel',el=$('#dx_fuel');if(el)el.style.display=fu?'flex':'none'}
+async function dxSubmit(){
+  const d=curDrv(),cat=$('#dx_c').value,amt=r2(+$('#dx_a').value),fu=cat=='fuel',lit=+$('#dx_l').value||0,odo=+$('#dx_o').value||0;
+  if(!d||!d.uid)return alert('حسابك غير مرتبط بسائق. اطلب من مدير الحركة ربطك.');
+  if(!(amt>0))return alert('أدخل المبلغ');
+  if(!$('#dx_pi').files[0])return alert('صورة الفاتورة أو المستند مطلوبة');
+  if(fu&&(!(lit>0)||!(odo>0)||!$('#dx_po').files[0]||!$('#dx_pp').files[0]))return alert('الوقود يتطلب: اللترات وقراءة عداد السيارة وصورة عداد السيارة وصورة عداد طلمبة المحطة');
+  const id=nid(),base=d.uid+'/'+id;
+  try{
+    const ph={inv:await upPhoto('dx_pi',base+'_inv.jpg')};
+    if(fu){ph.odo=await upPhoto('dx_po',base+'_odo.jpg');ph.pump=await upPhoto('dx_pp',base+'_pump.jpg')}
+    if($('#dx_px').files[0])ph.x=await upPhoto('dx_px',base+'_x.jpg');
+    const r={id,k:'dx',uid:d.uid,drv:d.id,dn:d.name,veh:d.veh||null,vn:d.vehName||'',cat,amt,desc:$('#dx_d').value.trim(),d:ld(),liters:lit,odo,pumpL:+$('#dx_pl').value||0,stn:$('#dx_s').value.trim(),ph,st:'pending',chk:{}};
+    db.fl.push(r);put('inv',r);ntfTo(null,'مصروف جديد من السائق '+d.name+': '+DC[cat]+' بمبلغ '+f(amt)+' بانتظار الاعتماد','fleet:apx',1);
+    alert('تم إرسال المصروف لاعتماد مدير الحركة');go('drvapp');
+  }catch(e){alert('تعذر الرفع: '+(e.message||e)+' (تأكد من تشغيل SQL الخاص بصور الأسطول)')}
+}
+function tkSet(id,st){
+  const t=db.fl.find(x=>x.id==id);
+  if(st=='run'){const o=prompt('قراءة عداد المركبة عند البدء (اختياري)','');if(o===null)return;if(+o)t.so=+o}
+  if(st=='done'){const o=prompt('قراءة عداد المركبة عند الانتهاء (اختياري)','');if(o===null)return;if(+o){if(t.so&&+o<t.so)return alert('قراءة النهاية أقل من البداية');t.eo=+o}t.note2=prompt('ملاحظات على المهمة (اختياري)','')||''}
+  t.st=st;t.up=ld();updRec('inv',t);
+  ntfTo(null,'السائق '+t.dn+' '+({acc:'استلم',run:'بدأ',done:'أنهى'}[st])+' المهمة: '+t.title,'fleet:disp',1);go('drvapp');
+}
+async function dxReview(id){
+  const c=db.fl.find(x=>x.id==id),fu=c.cat=='fuel',U={};
+  for(const k of Object.keys(c.ph||{})){const{data}=await sb.storage.from('fleet-docs').createSignedUrl(c.ph[k],900);U[k]=data&&data.signedUrl}
+  const sel=k=>`<select id="dxc_${k}"><option value="">— قرّر —</option><option value="ok" ${(c.chk||{})[k]=='ok'?'selected':''}>✔ مطابق</option><option value="bad" ${(c.chk||{})[k]=='bad'?'selected':''}>✘ غير مطابق</option></select>`;
+  const im=(k,t,ck)=>U[k]?`<div style="min-width:250px"><b>${t}</b><br><a href="${U[k]}" target="_blank" rel="noopener"><img src="${U[k]}" style="max-width:260px;max-height:260px;border:1px solid var(--b);border-radius:6px"></a>${ck?'<br>'+sel(k):''}</div>`:'';
+  $('#dxbox').innerHTML=`<div class="card"><h3>مراجعة مصروف: ${esc(c.dn)} — ${DC[c.cat]} — ${f(c.amt)}</h3>
+  <p>المسجل من السائق: المبلغ <b>${f(c.amt)}</b>${fu?` | اللترات <b>${c.liters}</b> | عداد السيارة <b>${c.odo}</b> | عداد الطلمبة <b>${c.pumpL||'—'}</b> | المحطة ${esc(c.stn||'—')}`:''} | ${esc(c.desc||'')} | المركبة ${esc(c.vn||'—')}</p>
+  <div class="row" style="align-items:flex-start">${im('inv','صورة الفاتورة (قارن بالمبلغ)',1)}${fu?im('odo','عداد السيارة (قارن بـ '+c.odo+')',1)+im('pump','عداد الطلمبة (قارن بـ '+(c.pumpL||c.liters)+' لتر)',1):''}${im('x','مرفق إضافي',0)}</div>
+  <div class="row"><label>ملاحظات المدير<input id="dxc_n" style="width:300px"></label><button class="b y" onclick="dxDecide(${id},'ok')">اعتماد وترحيل للحسابات</button><button class="b d" onclick="dxDecide(${id},'no')">رفض</button></div></div>`;
+  $('#dxbox').scrollIntoView();
+}
+function dxDecide(id,st){
+  const c=db.fl.find(x=>x.id==id),keys=c.cat=='fuel'?['inv','odo','pump']:['inv'],chk={};
+  keys.forEach(k=>chk[k]=$('#dxc_'+k)?$('#dxc_'+k).value:'');
+  if(st=='ok'){
+    if(keys.some(k=>!chk[k]))return alert('حدد مطابق أو غير مطابق لكل صورة قبل الاعتماد');
+    if(keys.some(k=>chk[k]=='bad')&&!confirm('فيه عناصر غير مطابقة. تعتمد المصروف رغم كده؟'))return;
+    const d=FL('drv').find(x=>x.id==c.drv),V=c.veh?vObj(c.veh):null,cust=drvCust(d),acc=c.cat=='fuel'?'5410':['part','tire'].includes(c.cat)?'5420':'5430';
+    try{post(today(),'مصروف سائق '+c.dn+' - '+DC[c.cat]+(c.vn?' - '+c.vn:''),[[acc,c.amt,0,undefined,V&&V.cc||undefined],[cust,0,c.amt]],'DX'+c.id)}catch(e){return alert(e.message)}
+    const x={id:nid(),k:'ctx',uid:c.uid,drv:c.drv,dir:'out',amt:c.amt,d:ld(),desc:'مصروف معتمد: '+DC[c.cat],ref:'DX'+c.id};db.fl.push(x);put('inv',x);
+    const b={id:nid(),veh:c.veh,drv:c.drv,d:c.d,amt:c.amt,pay:'none',ref:'DX'+c.id,src:'dx'},rec=c.cat=='fuel'?{...b,k:'fuel',odo:c.odo,liters:c.liters,stn:c.stn}:{...b,k:'exp',cat:c.cat,desc:c.desc};
+    db.fl.push(rec);put('inv',rec);if(V&&c.odo>(V.odo||0)){V.odo=c.odo;put('inv',V)}save();
+  }else{const n=prompt('سبب الرفض');if(n===null)return;c.note=n}
+  if($('#dxc_n')&&$('#dxc_n').value.trim())c.note=($('#dxc_n').value.trim()+(c.note?' | '+c.note:''));
+  Object.assign(c,{st,chk,by:me.name||me.email,decided:ld()});updRec('inv',c);
+  if(c.uid)ntfTo(c.uid,(st=='ok'?'تم اعتماد مصروفك: ':'تم رفض مصروفك: ')+DC[c.cat]+' '+f(c.amt)+(c.note?' — '+c.note:''),'drvapp');
+  go('fleet');
+}
+function myPunch(){
+  const e=myEmp();if(!e)return;
+  const d=ld(),now=new Date(),hm=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+  if(!onlOk(e,d))return alert('غير مسموح لك بتسجيل الحضور أونلاين اليوم. أيام الأونلاين: '+((e.onlDays||[]).map(i=>WD2[i]).join('، ')||'غير محددة'));
+  let r=db.hr.find(x=>x.k=='att'&&x.eid==e.id&&x.d==d&&x.selfUid==me.id);
+  if(!r){
+    if(db.hr.some(x=>x.k=='att'&&x.eid==e.id&&x.d==d))return alert('تم تسجيل حضورك اليوم بالفعل');
+    r={id:nid(),k:'att',eid:e.id,d,in:hm,wt:'on',src:'self',selfUid:me.id};attFill(r);db.hr.push(r);put('hr',r);alert('تم تسجيل حضورك أونلاين الساعة '+hm);
+  }else if(!r.out&&tmin(hm)>tmin(r.in)){r.out=hm;attFill(r);updRec('hr',r);alert('تم تسجيل انصرافك الساعة '+hm)}
+  else alert('تم تسجيل الانصراف بالفعل');
+  go('myatt');
+}
+
+FV.disp=()=>{
+  const D=FL('drv').filter(d=>d.status!='off'),T=FL('task'),td=ld(),X=FL('dx').filter(x=>x.st=='pending'),op=t=>['new','acc','run'].includes(t.st),late=T.filter(t=>op(t)&&t.d<td),A=flAlerts(),pl=FL('plan').filter(p=>planNext(p).due),cb=r2(D.reduce((s,d)=>s+custBal(d),0));
+  const act=D.filter(d=>drvStat(d)=='متاح').length,go_=(t)=>`<button class="b" onclick="flt='${t}';go('fleet')">فتح</button>`;
+  const dr=[['إعداد خطة التشغيل اليومية وإسناد المهام للسائقين',`مهام اليوم: ${T.filter(t=>t.d==td).length} | سائقون متاحون: ${act}`,go_('tasks')],['متابعة تنفيذ المهام وحل المتأخرات',`جارية: ${T.filter(t=>t.st=='run').length} | متأخرة: ${late.length}`,go_('tasks')],['اعتماد مصروفات السائقين ومطابقة المستندات',`بانتظار الاعتماد: ${X.length}`,go_('apx')],['تسليم واستلام المركبات وتوثيق حالتها وعدادها',`مركبات مسلّمة: ${FL('veh').filter(v=>v.drv).length} من ${FL('veh').length}`,go_('tasks')],['إدارة العهد النقدية للسائقين وتسويتها',`إجمالي العهد: ${f(cb)}`,go_('cust')],['متابعة الصيانة الدورية وجدولة المركبات',`خطط مستحقة: ${pl.length}`,go_('mnt')],['متابعة تراخيص المركبات ورخص السائقين',`تنبيهات: ${A.length}`,go_('doc')],['التأكد من الفحص اليومي لسلامة المركبات',`فحوصات اليوم: ${FL('chk').filter(x=>x.d==td).length} من ${FL('veh').filter(v=>v.status=='ok').length} مركبة نشطة`,go_('chk')],['مراجعة معدلات الوقود وتكلفة الكيلومتر',`شهر ${fm}`,go_('rep')],['متابعة الحوادث والمخالفات وتحميل المسؤولية',`سجلات: ${FL('exp').filter(x=>['acc','fine'].includes(x.cat)).length}`,go_('exp')]];
+  return `<div class="grid">${[['السائقون النشطون',D.length],['متاحون',act],['مهام اليوم',T.filter(t=>t.d==td).length],['جارية',T.filter(t=>t.st=='run').length],['متأخرة',late.length],['مصروفات بانتظار اعتمادي',X.length],['تنبيهات',A.length]].map(k=>`<div class="card"><div>${k[0]}</div><div class="k">${k[1]}</div></div>`).join('')}</div>
+  <div class="card"><h3>متابعة حركة السائقين</h3>${tbl(['السائق','الحالة','المركبة','المهمة الحالية','مهام اليوم','منتهية اليوم','عهدة','الرخصة'],D.map(d=>{const t=T.filter(x=>x.drv==d.id),cur=t.find(x=>x.st=='run')||t.find(x=>['new','acc'].includes(x.st));return[esc(d.name),drvStat(d),esc(d.vehName||'—'),cur?esc(cur.title)+' ('+TS[cur.st]+')':'—',t.filter(x=>x.d==td).length,t.filter(x=>x.d==td&&x.st=='done').length,f(custBal(d)),d.licExp?badge(dd(d.licExp)):'']}))}</div>
+  <div class="card"><h3>مهام ومسؤوليات مدير الحركة</h3>${tbl(['المسؤولية','الوضع الحالي',''],dr)}</div>
+  <div class="card"><h3>تنبيهات</h3>${tbl(['البند','التفصيل','الموعد','الحالة'],A)}</div>`;
+};
+FV.tasks=()=>{
+  const D=FL('drv').filter(d=>d.status!='off'),dO=D.map(d=>`<option value="${d.id}">${esc(d.name)}</option>`).join(''),T=FL('task').slice().sort((a,b)=>a.d<b.d?1:-1).slice(0,150);
+  return `<div class="card"><h3>إسناد مهمة لسائق</h3><div class="row"><label>السائق<select id="tk_d" onchange="tkDrv()">${dO}</select></label><label>المركبة<select id="tk_v"><option value="">—</option>${vO()}</select></label><label>عنوان المهمة<input id="tk_t" style="width:220px"></label><label>من<input id="tk_f"></label><label>إلى<input id="tk_to"></label><label>التاريخ<input id="tk_dt" type="date" value="${ld()}"></label><label>الوقت<input id="tk_tm" type="time"></label><label>الأولوية<select id="tk_p"><option value="n">عادي</option><option value="u">عاجل</option></select></label><label>ملاحظات<input id="tk_n"></label><button class="b y" onclick="taskAdd()">إسناد المهمة</button></div><small>بتروح المهمة لشاشة السائق وبيوصله إشعار. النظام بيمنع الإسناد لسائق رخصته منتهية أو لمركبة غير نشطة.</small></div>
+  <div class="card"><h3>المهام</h3>${tbl(['التاريخ','السائق','المركبة','المهمة','من ← إلى','الأولوية','الحالة','عداد البداية','عداد النهاية',''],T.map(t=>[t.d+(t.tm?' '+t.tm:''),esc(t.dn),esc(t.vn),esc(t.title),esc((t.from||'—')+' ← '+(t.to||'—')),t.pr=='u'?'<b style="color:#b3261e">عاجل</b>':'عادي',TS[t.st],t.so||'',t.eo||'',['new','acc','run'].includes(t.st)?`<button class="b d" onclick="taskCancel(${t.id})">إلغاء</button>`:esc(t.note2||'')]))}</div>
+  <div class="card"><h3>تسليم واستلام مركبة</h3><div class="row"><label>العملية<select id="hv_t"><option value="out">تسليم مركبة لسائق</option><option value="in">استلام مركبة من سائق</option></select></label><label>المركبة<select id="hv_v">${vO()}</select></label><label>السائق<select id="hv_d">${dO}</select></label><label>قراءة العداد<input id="hv_o" type="number" style="width:110px"></label><label>مستوى الوقود<select id="hv_f"><option>ممتلئ</option><option>3/4</option><option>1/2</option><option>1/4</option><option>شبه فارغ</option></select></label><label>حالة المركبة<input id="hv_c" style="width:240px" placeholder="خدوش، أعطال، ملاحظات"></label><button class="b y" onclick="hovAdd()">تسجيل</button></div>
+  ${tbl(['التاريخ','العملية','المركبة','السائق','العداد','الوقود','الحالة','بواسطة'],FL('hov').slice().reverse().slice(0,40).map(h=>[h.d,h.type=='out'?'تسليم':'استلام',esc(h.vn),esc(h.dn),f(h.odo),esc(h.fuel||''),esc(h.cond||''),esc(h.by||'')]))}</div>`;
+};
+FV.apx=()=>{
+  const P=FL('dx').filter(x=>x.st=='pending'),H=FL('dx').filter(x=>x.st!='pending').slice().reverse().slice(0,60);
+  return `<div id="dxbox"></div><div class="card"><h3>مصروفات بانتظار اعتمادي (${P.length})</h3>${tbl(['التاريخ','السائق','المركبة','البند','المبلغ','عداد/لترات',''],P.map(x=>[x.d,esc(x.dn),esc(x.vn),DC[x.cat],f(x.amt),x.cat=='fuel'?x.odo+' / '+x.liters:'',`<button class="b y" onclick="dxReview(${x.id})">مراجعة</button>`]))}<small>اضغط مراجعة لمقارنة الصور بالأرقام المسجلة، حدد مطابق أو غير مطابق، ثم اعتمد. الاعتماد بيرحّل للحسابات تلقائيًا من عهدة السائق.</small></div>
+  <div class="card"><h3>سجل القرارات</h3>${tbl(['التاريخ','السائق','البند','المبلغ','القرار','المطابقة','ملاحظات'],H.map(x=>[x.d,esc(x.dn),DC[x.cat],f(x.amt),x.st=='ok'?'معتمد':'مرفوض',Object.values(x.chk||{}).includes('bad')?'<b style="color:#c77700">فيه غير مطابق</b>':(x.st=='ok'?'مطابق':''),esc(x.note||'')]))}</div>`;
+};
+FV.cust=()=>{
+  const D=FL('drv');
+  return `<div class="card"><h3>عهد السائقين</h3>${tbl(['السائق','حساب العهدة','المستلم','المصروف والمورّد','الرصيد','مصروفات معلقة',''],D.map(d=>{const C=FL('ctx').filter(x=>x.drv==d.id),pn_=FL('dx').filter(x=>x.drv==d.id&&x.st=='pending');return[esc(d.name),d.cust||'',f(C.filter(x=>x.dir=='in').reduce((s,x)=>s+x.amt,0)),f(C.filter(x=>x.dir=='out').reduce((s,x)=>s+x.amt,0)),'<b>'+f(custBal(d))+'</b>',f(pn_.reduce((s,x)=>s+x.amt,0)),`<button class="b" onclick="custReturn(${d.id})">توريد الرصيد للخزينة</button>`]}))}<small>صرف عهدة لسائق بيتم من الخزينة ← سند صرف ← اختار السائق من مجموعة "السائقون (عهدة)". بتنزل على عهدته تلقائيًا.</small></div>`;
+};
 
 /* ====== شجرة الحسابات ====== */
 const kids=c=>ACC.filter(a=>a[4]==c),isHdr=a=>!!a[6]||kids(a[0]).length>0,postable=a=>!!a&&!a[5]&&!isHdr(a);
@@ -1110,15 +1265,16 @@ function charts(){
 
 /* ====== الخزينة ====== */
 const trs=()=>ACC.filter(a=>a[3]),anm=k=>(ACC.find(a=>a[0]==k)||[])[1];
-const cpo=()=>`<optgroup label="العملاء">${db.parties.filter(p=>p.type=='C').map(p=>`<option value="C:${p.id}">${esc(p.name)}</option>`).join('')}</optgroup><optgroup label="الموردون">${db.parties.filter(p=>p.type=='S').map(p=>`<option value="S:${p.id}">${esc(p.name)}</option>`).join('')}</optgroup><optgroup label="الإيرادات والمصروفات والحسابات الأخرى">${ACC.filter(a=>!a[3]&&postable(a)).map(a=>`<option value="A:${a[0]}">${esc(a[1])} (${TY[a[2]]})</option>`).join('')}</optgroup>`;
+const cpo=()=>`<optgroup label="العملاء">${db.parties.filter(p=>p.type=='C').map(p=>`<option value="C:${p.id}">${esc(p.name)}</option>`).join('')}</optgroup><optgroup label="الموردون">${db.parties.filter(p=>p.type=='S').map(p=>`<option value="S:${p.id}">${esc(p.name)}</option>`).join('')}</optgroup><optgroup label="السائقون (عهدة)">${FL('drv').filter(d=>d.cust).map(d=>`<option value="D:${d.id}">${esc(d.name)}</option>`).join('')}</optgroup><optgroup label="الإيرادات والمصروفات والحسابات الأخرى">${ACC.filter(a=>!a[3]&&postable(a)&&!FL('drv').some(d=>d.cust==a[0])).map(a=>`<option value="A:${a[0]}">${esc(a[1])} (${TY[a[2]]})</option>`).join('')}</optgroup>`;
 const upAcc=a=>sb.from('accounts').upsert(a).then(r=>{if(r.error)alert(r.error.message)});
 function vch(kind){
   const t=$('#vt').value,v=r2(+$('#va').value),d=$('#vd').value||today(),c=$('#vc').value,ds=$('#vx').value.trim();
   if(v<=0||!c)return alert('أدخل المبلغ واختر الطرف المقابل');
-  const[ty,id]=c.split(':'),pt=ty=='A'?null:db.parties.find(x=>x.id==+id),acc=ty=='C'?'1100':ty=='S'?'2000':id,nm=pt?pt.name:anm(id),pid=pt?pt.id:undefined,R=kind=='R',pf=R?'RV':'PV',cc=$('#vcc').value||undefined;
+  const[ty,id]=c.split(':'),dv=ty=='D'?FL('drv').find(x=>x.id==+id):null,pt=ty=='A'||ty=='D'?null:db.parties.find(x=>x.id==+id),acc=ty=='C'?'1100':ty=='S'?'2000':ty=='D'?dv.cust:id,nm=pt?pt.name:dv?dv.name:anm(id),pid=pt?pt.id:undefined,R=kind=='R',pf=R?'RV':'PV',cc=$('#vcc').value||undefined;
   try{
     const n=db.je.filter(j=>j.ref.startsWith(pf)).length+1;
     post(d,(R?'سند قبض من ':'سند صرف إلى ')+nm+(ds?' - '+ds:''),R?[[t,v,0],[acc,0,v,pid,cc]]:[[acc,v,0,pid,cc],[t,0,v]],pf+n);
+    if(dv){const x={id:nid(),k:'ctx',uid:dv.uid||'',drv:dv.id,dir:R?'out':'in',amt:v,d,desc:(R?'توريد عهدة':'صرف عهدة')+(ds?' - '+ds:''),ref:pf+n};db.fl.push(x);put('inv',x)}
     save();go('cash');
   }catch(e){alert(e.message)}
 }
@@ -1241,7 +1397,7 @@ const ET={idc:'بطاقة الرقم القومي',lic:'رخصة',edu:'شهاد�
 const EMS=[
  ['بيانات شخصية',[['name','الاسم بالعربي','t'],['nameEn','الاسم بالإنجليزي','t'],['gender','النوع','s',{m:'ذكر',f:'أنثى'}],['birth','تاريخ الميلاد','d'],['birthPlace','محل الميلاد','t'],['nat','الجنسية','t'],['marital','الحالة الاجتماعية','s',{single:'أعزب',married:'متزوج',div:'مطلق',wid:'أرمل'}],['kids','عدد الأبناء','n'],['natid','الرقم القومي','t'],['idExp','انتهاء البطاقة','d'],['blood','فصيلة الدم','t'],['edu','المؤهل الدراسي','t'],['major','التخصص','t'],['mil','الموقف من التجنيد','s',{na:'غير مطلوب',done:'أدى الخدمة',exempt:'معفى',post:'مؤجل'}]]],
  ['بيانات الاتصال',[['phone','الهاتف','t'],['phone2','هاتف بديل','t'],['email','البريد الإلكتروني','t'],['gov','المحافظة','t'],['addr','العنوان','t'],['emName','اسم جهة الطوارئ','t'],['emPhone','هاتف الطوارئ','t'],['emRel','صلة القرابة','t']]],
- ['البيانات الوظيفية',[['hire','تاريخ التعيين','d'],['ctype','نوع التعاقد','s',{perm:'دائم',temp:'مؤقت',part:'جزئي',trial:'تحت التجربة',proj:'مشروع'}],['trialEnd','انتهاء فترة التجربة','d'],['contEnd','انتهاء العقد','d'],['grade','الدرجة الوظيفية','t'],['shift','الوردية (نظام الدوام)','sh'],['loc','مكان العمل','t'],['br','الفرع','ob'],['dir','الإدارة','od'],['dep','القسم','op'],['pos','المسمى الوظيفي (من الهرم الوظيفي)','oj'],['mgr','المدير المباشر','em'],['uid','حساب المستخدم (لاستلام الإشعارات)','us'],['status','الحالة','s',ST]]],
+ ['البيانات الوظيفية',[['hire','تاريخ التعيين','d'],['ctype','نوع التعاقد','s',{perm:'دائم',temp:'مؤقت',part:'جزئي',trial:'تحت التجربة',proj:'مشروع'}],['trialEnd','انتهاء فترة التجربة','d'],['contEnd','انتهاء العقد','d'],['grade','الدرجة الوظيفية','t'],['shift','الوردية (ساعات العمل)','sh'],['wk','نظام الدوام','s',{full:'دوام كامل (حسب ساعات العمل)',part:'دوام جزئي'}],['pdays','أيام العمل (للدوام الجزئي)','wd'],['onl','السماح بالحضور أونلاين','s',{n:'لا',y:'نعم'}],['onlDays','أيام العمل أونلاين','wd'],['canVeh','مسموح له باستلام مركبة','s',{n:'لا',y:'نعم'}],['fleetRole','دوره في الأسطول والحركة','s',{n:'—',mgr:'مدير الحركة',stf:'موظف أسطول'}],['loc','مكان العمل','t'],['br','الفرع','ob'],['dir','الإدارة','od'],['dep','القسم','op'],['pos','المسمى الوظيفي (من الهرم الوظيفي)','oj'],['mgr','المدير المباشر','em'],['uid','حساب المستخدم (لاستلام الإشعارات)','us'],['status','الحالة','s',ST]]],
  ['البيانات المالية والتأمينية',[['basic','الراتب الأساسي','n'],['allow','البدلات','n'],['insp','نسبة خصم التأمينات %','n'],['insNo','الرقم التأميني','t'],['insDate','تاريخ بدء التأمين','d'],['payMode','طريقة الصرف','s',{cash:'نقدي',bank:'تحويل بنكي'}],['bank','البنك','t'],['acct','رقم الحساب أو IBAN','t']]]
 ];
 const eOpts=(L,v,lab)=>'<option value="">—</option>'+L.map(x=>`<option value="${x.id}" ${x.id==v?'selected':''}>${esc(lab(x))}</option>`).join('');
@@ -1252,9 +1408,10 @@ function empInp(q,e){
   if(t=='od')return `<select id="${id}">${eOpts(OD(),v,x=>oN(x.br)+' / '+x.name)}</select>`;
   if(t=='op')return `<select id="${id}">${eOpts(OP(),v,x=>oN(x.dir)+' / '+x.name)}</select>`;
   if(t=='oj')return `<select id="${id}">${eOpts(OJ(),v,x=>x.name)}</select>`;
+  if(t=='wd')return `<span style="display:flex;gap:8px;flex-wrap:wrap">${WD2.map((d,i)=>`<span style="display:inline-flex;align-items:center;gap:3px"><input type="checkbox" class="ef2_${q[0]}" value="${i}" ${(Array.isArray(e[q[0]])?e[q[0]]:[]).includes(i)?'checked':''}>${d}</span>`).join('')}</span>`;
   if(t=='sh')return `<select id="${id}">${eOpts(db.hr.filter(x=>x.k=='shift'),v,x=>x.name+' ('+x.start+' - '+x.end+')')}</select>`;
   if(t=='em')return `<select id="${id}">${eOpts(db.emp.filter(y=>y.id!=e.id),v,x=>x.name)}</select>`;
-  if(t=='us')return `<select id="${id}"><option value="">—</option>${db.profiles.map(u=>`<option value="${u.id}" ${u.id==v?'selected':''}>${esc(u.name||u.email)}</option>`).join('')}</select>`;
+  if(t=='us')return `<select id="${id}"><option value="">—</option>${usOpts(v)}</select>`;
   return `<input id="${id}" type="${t=='n'?'number':t=='d'?'date':'text'}" ${t=='n'?'step="0.01"':''} value="${esc(v)}">`;
 }
 function empCode(e){
@@ -1266,11 +1423,11 @@ function drawBc(){const e=db.emp.find(x=>x.id==hrE),el=$('#ebc');if(e&&el&&windo
 function bcSvg(code){if(!window.JsBarcode)return esc(code);const sv=document.createElementNS('http://www.w3.org/2000/svg','svg');JsBarcode(sv,code,{format:'CODE128',height:44,width:1.6,displayValue:true,fontSize:12,margin:0});return sv.outerHTML}
 function empSaveFile(id){
   const isNew=!db.emp.some(x=>x.id==id),e=isNew?hrNew:db.emp.find(x=>x.id==id),v={};
-  for(const sc of EMS)for(const q of sc[1]){const el=$('#ef2_'+q[0]);v[q[0]]=q[2]=='n'?(+el.value||0):['ob','od','op','oj','em','sh'].includes(q[2])?(+el.value||null):q[2]=='us'?(el.value||null):el.value.trim()}
+  for(const sc of EMS)for(const q of sc[1]){if(q[2]=='wd'){v[q[0]]=[...document.querySelectorAll('.ef2_'+q[0]+':checked')].map(x=>+x.value);continue}const el=$('#ef2_'+q[0]);v[q[0]]=q[2]=='n'?(+el.value||0):['ob','od','op','oj','em','sh'].includes(q[2])?(+el.value||null):q[2]=='us'?(el.value||null):el.value.trim()}
   if(!v.name)return alert('الاسم مطلوب');
   if(!(v.basic>0))return alert('الراتب الأساسي مطلوب');
   let n=0;for(let x=db.emp.find(y=>y.id==v.mgr);x&&n<100;x=db.emp.find(y=>y.id==x.mgr),n++)if(x.id==id)return alert('المدير المباشر المختار يعمل حلقة في الهيكل التبعي');
-  Object.assign(e,v);if(v.pos)e.job=oN(v.pos);if(v.dep)e.dept=oN(v.dep);
+  const was=e.canVeh;Object.assign(e,v);if(v.pos)e.job=oN(v.pos);if(v.dep)e.dept=oN(v.dep);if(v.canVeh=='y'&&was!='y')ntfVeh(e);
   if(isNew){
     e.status=e.status||'active';db.emp.push(e);empCode(e);put('employees',e);
     const rc=ntfNew([e]);hrNew=null;hrt='emp';
@@ -1352,7 +1509,7 @@ H.file=()=>{
   return `<div class="card np"><button class="b" onclick="hrNew=null;hrt='emp';go('hr')">رجوع للموظفين</button></div>
   <div class="card"><div class="row" style="align-items:center"><img id="phimg" ${e.photo?`src="${e.photo}"`:''} alt="" style="width:110px;height:130px;object-fit:cover;border-radius:8px;border:1px solid var(--b);background:#e4ebe9"><div><h3>${isNew?'موظف جديد':esc(e.name)}</h3><div>${esc(e.job||'')} ${e.dept?'— '+esc(e.dept):''}</div><div>الكود: <b>${esc(code)}</b></div>${isNew?'':'<svg id="ebc"></svg>'}</div></div>
   <div class="row np" style="margin-top:8px"><label>الصورة الشخصية<input type="file" accept="image/*" onchange="empPhoto(${e.id},this)"></label>${isNew?'':`<button class="b y" onclick="printCards([${e.id}])">طباعة كارت الموظف</button>`}</div></div>
-  ${EMS.map(sc=>`<div class="card"><h3>${sc[0]}</h3><div class="row">${sc[1].map(q=>`<label>${q[1]}${empInp(q,e)}</label>`).join('')}</div></div>`).join('')}
+  ${EMS.map(sc=>`<div class="card"><h3>${sc[0]}</h3><div class="row">${sc[1].map(q=>q[2]=='wd'?`<div style="display:flex;flex-direction:column;gap:3px;font-size:12px">${q[1]}${empInp(q,e)}</div>`:`<label>${q[1]}${empInp(q,e)}</label>`).join('')}</div></div>`).join('')}
   <div class="card np"><button class="b y" onclick="empSaveFile(${e.id})">${isNew?'إضافة الموظف':'حفظ ملف الموظف'}</button></div>
   ${isNew?'<div class="card">المستندات المرفقة بتترفع بعد إضافة الموظف من ملفه.</div>':`<div class="card"><h3>المستندات والمرفقات</h3><div class="row np"><label>النوع<select id="ed_t">${Object.keys(ET).map(k=>`<option value="${k}">${ET[k]}</option>`).join('')}</select></label><label>تاريخ الانتهاء (إن وجد)<input id="ed_x" type="date"></label><label>الملف (أي صيغة)<input id="ed_f" type="file"></label><button class="b y" onclick="empDocUp(${e.id})">رفع المستند</button></div>
   ${tbl(['النوع','الملف','الصيغة','الحجم','تاريخ الرفع','الانتهاء',''],D.map(r=>[ET[r.type]||'',esc(r.name),esc(r.ext),Math.round(r.size/1024)+' ك.ب',r.d,r.exp?r.exp+' '+badge(dd(r.exp)):'',`<button class="b" onclick="empDocView(${r.id})">عرض</button> <button class="b d" onclick="empDocDel(${r.id})">حذف</button>`]))}</div>`}`;
@@ -1361,7 +1518,7 @@ H.file=()=>{
 /* ====== لوحة الموارد البشرية والإشعارات واستيراد وتصدير الموظفين ====== */
 const hsel=d=>`<select onchange="orgHead(${d.id},this.value)">${eOpts(db.emp,d.head,x=>x.name)}</select>`;
 function orgHead(id,v){const r=db.hr.find(x=>x.id==id);r.head=+v||null;put('hr',r)}
-const myNtf=()=>(db.ntf||[]).filter(n=>n.uid?n.uid==me.id:can('hr'));
+const myNtf=()=>(db.ntf||[]).filter(n=>n.uid?n.uid==me.id:(n.fl?can('fleet'):can('hr')));
 const nbUpd=()=>{const el=$('#nb');if(el)el.textContent=myNtf().filter(n=>!n.seen).length};
 function ntfSeen(id){const n=db.ntf.find(x=>x.id==id);n.seen=true;sb.from('ntf').update({data:n}).eq('id',id).then(r=>{if(r.error)alert(r.error.message)});go('ntf')}
 function ntfNew(L){
@@ -1383,6 +1540,7 @@ function empRow(e){
     if(q[2]=='us')return;
     let v=e[q[0]]??'';
     if(q[2]=='s')v=q[3][v]||'';
+    if(q[2]=='wd')v=(Array.isArray(v)?v:[]).map(i=>WD2[i]).join('، ');
     if(['ob','od','op','oj','sh'].includes(q[2]))v=oN(v);
     if(q[2]=='em'){const m=db.emp.find(x=>x.id==v);v=m?empCode(m):''}
     r[q[1]]=v;
@@ -1406,7 +1564,7 @@ async function empXlIn(ev){
   try{const wb=XLSX.read(await file.arrayBuffer());rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''})}catch(e){return alert('تعذر قراءة الملف')}
   if(!rows.length||!(H1('name') in rows[0]))return alert('الملف لا يطابق النموذج. صدّر الموظفين أو حمّل النموذج واستخدمه كما هو.');
   if(!confirm('معالجة '+rows.length+' صف؟ الجدد بيتضافوا والموجودين بيتعدلوا.'))return;
-  const sx=v=>String(v).trim(),upO=[],newE=[],touched=[],pend=[],er=[];let up=0;
+  const sx=v=>String(v).trim(),upO=[],newE=[],touched=[],pend=[],er=[],vehNew=[];let up=0;
   const getOrg=(k,name,extra)=>{
     if(!name)return null;
     let o=db.hr.find(x=>x.k==k&&x.name==name&&Object.keys(extra).every(z=>x[z]==extra[z]));
@@ -1423,13 +1581,14 @@ async function empXlIn(ev){
         const c=r[q[1]];if(c===undefined||c==='')continue;
         if(q[2]=='n')v[q[0]]=+c||0;
         else if(q[2]=='d')v[q[0]]=xd(c);
+        else if(q[2]=='wd')v[q[0]]=sx(c).split(/[،,]/).map(t=>WD2.indexOf(t.trim())).filter(i=>i>=0);
         else if(q[2]=='s'){const k=Object.keys(q[3]).find(z=>q[3][z]==sx(c)||z==sx(c));if(k)v[q[0]]=k}
         else v[q[0]]=sx(c);
       }
       if(!ex&&(!v.name||!(v.basic>0)))throw 0;
       const bn=sx(r[H1('br')]),dn=sx(r[H1('dir')]),pn=sx(r[H1('dep')]),jn=sx(r[H1('pos')]);
       const bi=getOrg('br',bn,{}),di=getOrg('dir',dn,bi?{br:bi}:{}),pi=getOrg('dep',pn,di?{dir:di}:{}),ji=getOrg('job',jn,{});
-      Object.assign(e,v);
+      const was=e.canVeh;Object.assign(e,v);if(v.canVeh=='y'&&was!='y')vehNew.push(e);
       const sn=sx(r[H1('shift')]);if(sn){const sh=db.hr.find(x=>x.k=='shift'&&x.name==sn);if(sh)e.shift=sh.id}
       if(bi)e.br=bi;if(di)e.dir=di;if(pi){e.dep=pi;e.dept=pn}if(ji){e.pos=ji;e.job=jn}
       if(!ex){db.emp.push(e);empCode(e);newE.push(e)}else up++;
@@ -1439,7 +1598,7 @@ async function empXlIn(ev){
   pend.forEach(([e,m])=>{if(!m)return;const t=db.emp.find(x=>x.code==m)||db.emp.find(x=>x.name==m);if(t&&t.id!=e.id)e.mgr=t.id});
   if(touched.length)await sb.from('employees').upsert(touched.map(e=>({id:e.id,data:e}))).then(r=>{if(r.error)alert(r.error.message)});
   if(upO.length)await sb.from('hr').upsert(upO.map(o=>({id:o.id,data:o}))).then(r=>{if(r.error)alert(r.error.message)});
-  const rc=newE.length?ntfNew(newE):[];
+  const rc=newE.length?ntfNew(newE):[];vehNew.forEach(ntfVeh);
   ev.target.value='';
   alert('تم: إضافة '+newE.length+' موظف جديد وتعديل '+up+' موظف'+(rc.length?'\nإشعارات اتبعتت إلى: '+rc.join('، '):'')+(er.length?'\nصفوف تم تخطيها (أرقامها في الملف): '+er.slice(0,30).join('، '):''));
   go('hr');
@@ -1486,7 +1645,7 @@ const tmin=t=>{if(t===''||t==null)return null;if(typeof t=='number')return Math.
 const hhmm=n=>String(Math.floor(n/60)).padStart(2,'0')+':'+String(n%60).padStart(2,'0'),ld=()=>ymd(new Date()),isHol=d=>db.hr.some(x=>x.k=='hol'&&x.date==d);
 let attM=new Date().toISOString().slice(0,7);
 const updRec=(t,o)=>sb.from(t).update({data:o}).eq('id',o.id).then(r=>{if(r.error)alert(r.error.message)});
-function ntfTo(uid,msg,go_){const r={id:nid(),k:'ntf',uid,msg,d:today(),by:me.name||me.email,seen:false,go:go_||null};db.ntf.push(r);put('ntf',r);nbUpd();return r}
+function ntfTo(uid,msg,go_,fl){const r={id:nid(),k:'ntf',uid,msg,d:today(),by:me.name||me.email,seen:false,go:go_||null,fl:fl?1:0};db.ntf.push(r);put('ntf',r);nbUpd();return r}
 const subOpts=x=>'<option value="">— اختر من يستلم الشغل —</option>'+(x.cands||db.emp.filter(e=>e.status=='active'&&e.id!=x.eid).map(e=>({id:e.id,name:e.name}))).map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('');
 function lvDecide(id,st){
   const r=db.hr.find(x=>x.id==id),en=r.en||eN(r.eid);let sub=null,note='';
@@ -1527,7 +1686,7 @@ function attProcess(m){
       if(r&&r.src===undefined)continue;
       if(r&&r.in){attFill(r);out.push(r);continue}
       const wd=new Date(y,mo-1,d).getDay(),lv=db.hr.find(x=>x.k=='lv'&&x.eid==e.id&&x.st=='ok'&&x.from<=ds&&ds<=x.to);
-      const st=c.weekend.includes(wd)?'w':isHol(ds)?'h':lv?'v':'a';
+      const off=e.wk=='part'&&e.pdays&&e.pdays.length?!e.pdays.includes(wd):c.weekend.includes(wd),st=off?'w':isHol(ds)?'h':lv?'v':'a';
       if(!r){if(st=='w'||st=='h')continue;r={id:nid(),k:'att',eid:e.id,d:ds,src:'auto'};db.hr.push(r)}
       Object.assign(r,{st,late:0,early:0,hours:0});out.push(r);
     }
@@ -1562,6 +1721,7 @@ async function attXlIn(ev){
   Object.values(G).forEach(g=>{
     const all=[...g.ti,...g.to,...g.ta],i=g.ti.length?Math.min(...g.ti):(all.length?Math.min(...all):null),o=g.to.length?Math.max(...g.to):(all.length>1?Math.max(...all):null);
     if(i===null){er.push(g.e.name+' '+g.d);return}
+    if(g.wt=='on'&&!onlOk(g.e,g.d)){er.push(g.e.name+' '+g.d+' (أونلاين غير مسموح)');return}
     let r=db.hr.find(x=>x.k=='att'&&x.eid==g.e.id&&x.d==g.d);
     if(!r){r={id:nid(),k:'att',eid:g.e.id,d:g.d};db.hr.push(r)}
     Object.assign(r,{in:hhmm(i),out:o!==null&&o>i?hhmm(o):'',wt:g.wt||r.wt||'off',src:'xl'});months.add(g.d.slice(0,7));n++;
@@ -1588,6 +1748,7 @@ function scanPunch(){
   const code=$('#sc_c').value.trim(),e=db.emp.find(x=>x.code==code),box=$('#sc_r');$('#sc_c').value='';
   if(!code)return;
   if(!e||e.status!='active'){box.innerHTML='<div class="card" style="border-color:#b3261e"><b style="color:#b3261e">كود غير معروف أو موظف غير نشط: '+esc(code)+'</b></div>';return}
+  if($('#sc_w').value=='on'&&!onlOk(e,ld())){box.innerHTML='<div class="card" style="border-color:#b3261e"><b style="color:#b3261e">الموظف '+esc(e.name)+' غير مسموح له بالحضور أونلاين اليوم</b></div>';return}
   const d=ld(),now=new Date(),hm=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
   let r=db.hr.find(x=>x.k=='att'&&x.eid==e.id&&x.d==d),act='';
   if(!r){r={id:nid(),k:'att',eid:e.id,d,src:'bc',wt:$('#sc_w').value,in:hm};db.hr.push(r);act='حضور'}
@@ -1801,18 +1962,40 @@ find(){
   return `<div class="card"><h3>بحث شامل</h3><input id="gq" placeholder="ابحث في العملاء والموردين والأصناف والفواتير والموظفين والحسابات والقيود..." oninput="gsr()" style="width:100%" autofocus></div><div id="gres"></div>`;
 },
 fleet(){
-  const T={dash:'لوحة الأسطول',veh:'المركبات',drv:'السائقون',fuel:'الوقود',mnt:'الصيانة',trip:'الرحلات',exp:'المصروفات والحوادث',doc:'المستندات والتراخيص',chk:'الفحص اليومي',rep:'التقارير'};
+  const T={dash:'لوحة الأسطول',disp:'مدير الحركة',tasks:'المهام والتسليم',apx:'اعتماد مصروفات السائقين',cust:'عهد السائقين',veh:'المركبات',drv:'السائقون',fuel:'الوقود',mnt:'الصيانة',trip:'الرحلات',exp:'المصروفات والحوادث',doc:'المستندات والتراخيص',chk:'الفحص اليومي',rep:'التقارير'};
   return `<div class="card np"><div class="row">${Object.keys(T).map(k=>`<button class="b ${k==flt?'y':''}" onclick="flt='${k}';go('fleet')">${T[k]}</button>`).join('')}</div></div>`+FV[flt]();
 },
 ntf(){
   const L=myNtf().slice().sort((a,b)=>a.id<b.id?1:-1);
-  return `<div class="card"><h3>الإشعارات</h3>${tbl(['التاريخ','الرسالة','من',''],L.map(n=>[n.d,n.seen?esc(n.msg):'<b>'+esc(n.msg)+'</b>',esc(n.by),(n.go?`<button class="b" onclick="go('${n.go}')">فتح</button> `:'')+(n.seen?'تم الاطلاع':`<button class="b y" onclick="ntfSeen(${n.id})">تم الاطلاع</button>`)]))}</div>`;
+  return `<div class="card"><h3>الإشعارات</h3>${tbl(['التاريخ','الرسالة','من',''],L.map(n=>[n.d,n.seen?esc(n.msg):'<b>'+esc(n.msg)+'</b>',esc(n.by),(n.go?`<button class="b" onclick="goN('${n.go}')">فتح</button> `:'')+(n.seen?'تم الاطلاع':`<button class="b y" onclick="ntfSeen(${n.id})">تم الاطلاع</button>`)]))}</div>`;
 },
 appr(){
   const uid=me.id,L=db.hr.filter(x=>x.k=='lv'&&x.mgrUid==uid),B=db.hr.filter(x=>x.k=='adj'&&x.dirUid==uid),pl=L.filter(x=>x.st=='pending'),pb=B.filter(x=>x.ap=='pending');
   return `<div class="card"><h3>طلبات إجازة بانتظار موافقتي (${pl.length})</h3>${tbl(['الموظف','النوع','من','إلى','الأيام','يستلم الشغل',''],pl.map(x=>[esc(x.en),LT[x.type],x.from,x.to,x.days,`<select id="sub_${x.id}">${subOpts(x)}</select>`,`<button class="b y" onclick="lvDecide(${x.id},'ok')">موافقة</button> <button class="b d" onclick="lvDecide(${x.id},'no')">رفض</button>`]))}<small>لازم تحدد موظفًا يستلم شغل صاحب الإجازة، وبدون كده مش هتقدر توافق.</small></div>
   <div class="card"><h3>طلبات صرف مكافآت بانتظار موافقتي (${pb.length})</h3>${tbl(['الموظف','الشهر','المبلغ','البيان',''],pb.map(x=>[esc(x.en),x.m,f(x.amt),esc(x.desc),`<button class="b y" onclick="bonusDecide(${x.id},'ok')">موافقة</button> <button class="b d" onclick="bonusDecide(${x.id},'no')">رفض</button>`]))}</div>
   <div class="card"><h3>آخر قراراتي</h3>${tbl(['النوع','الموظف','التفاصيل','القرار'],[...L.filter(x=>x.st!='pending').map(x=>['إجازة',esc(x.en),x.from+' ← '+x.to,x.st=='ok'?'موافقة (يستلم: '+esc(x.subName)+')':'مرفوضة']),...B.filter(x=>x.ap!='pending').map(x=>['مكافأة',esc(x.en),f(x.amt),x.ap=='ok'?'موافقة':'مرفوضة'])])}</div>`;
+},
+drvapp(){
+  const d=curDrv();
+  if(!d)return '<div class="card">لا يوجد سائق مرتبط بحسابك. اطلب من مدير الحركة ربط حسابك بسجل سائق.</div>';
+  const bal_=custBal(d),T=FL('task').filter(t=>t.drv==d.id).sort((a,b)=>a.d<b.d?1:-1).slice(0,30),C=FL('ctx').filter(x=>x.drv==d.id).sort((a,b)=>a.id-b.id),X=FL('dx').filter(x=>x.drv==d.id).slice().reverse().slice(0,40);
+  let run=0;const led=C.map(x=>{run=r2(run+(x.dir=='in'?x.amt:-x.amt));return[x.d,esc(x.desc),x.dir=='in'?f(x.amt):'',x.dir=='out'?f(x.amt):'',f(run)]}).reverse();
+  const sel=FL('drv').length>1&&!myDrv()?`<div class="card"><label>السائق<select onchange="dSel=+this.value;go('drvapp')">${FL('drv').map(x=>`<option value="${x.id}" ${x.id==d.id?'selected':''}>${esc(x.name)}</option>`).join('')}</select></label></div>`:'';
+  return sel+`<div class="grid">${[['رصيد عهدتي',f(bal_)],['مركبتي',esc(d.vehName||'—')],['مهام مفتوحة',T.filter(t=>['new','acc','run'].includes(t.st)).length],['مصروفات بانتظار الاعتماد',X.filter(x=>x.st=='pending').length]].map(k=>`<div class="card"><div>${k[0]}</div><div class="k">${k[1]}</div></div>`).join('')}</div>
+  <div class="card"><h3>مهامي</h3>${tbl(['التاريخ','المهمة','من ← إلى','المركبة','الحالة',''],T.map(t=>[t.d+(t.tm?' '+t.tm:''),esc(t.title)+(t.pr=='u'?' <b style="color:#b3261e">(عاجل)</b>':''),esc((t.from||'—')+' ← '+(t.to||'—')),esc(t.vn),TS[t.st],t.st=='new'?`<button class="b" onclick="tkSet(${t.id},'acc')">استلمت المهمة</button>`:t.st=='acc'?`<button class="b y" onclick="tkSet(${t.id},'run')">بدأت</button>`:t.st=='run'?`<button class="b y" onclick="tkSet(${t.id},'done')">أنهيت</button>`:'']))}</div>
+  <div class="card"><h3>تسجيل مصروف</h3><div class="row"><label>البند<select id="dx_c" onchange="dxCat()">${Object.keys(DC).map(k=>`<option value="${k}">${DC[k]}</option>`).join('')}</select></label><label>المبلغ<input id="dx_a" type="number" step="0.01" style="width:110px"></label><label>البيان<input id="dx_d" style="width:220px"></label><label>صورة الفاتورة أو المستند (مطلوبة)<input id="dx_pi" type="file" accept="image/*" capture="environment"></label><label>مرفق إضافي<input id="dx_px" type="file" accept="image/*" capture="environment"></label></div>
+  <div class="row" id="dx_fuel" style="display:flex"><label>اللترات<input id="dx_l" type="number" step="0.01" style="width:100px"></label><label>قراءة عداد السيارة<input id="dx_o" type="number" style="width:120px"></label><label>قراءة عداد الطلمبة (لتر)<input id="dx_pl" type="number" step="0.01" style="width:120px"></label><label>المحطة<input id="dx_s"></label><label>صورة عداد السيارة<input id="dx_po" type="file" accept="image/*" capture="environment"></label><label>صورة عداد طلمبة المحطة<input id="dx_pp" type="file" accept="image/*" capture="environment"></label></div>
+  <button class="b y" onclick="dxSubmit()">إرسال للاعتماد</button><small> مصروف الوقود بيتطلب صورة عداد السيارة وعداد الطلمبة مع الفاتورة.</small></div>
+  <div class="card"><h3>مصروفاتي</h3>${tbl(['التاريخ','البند','المبلغ','الحالة','المطابقة','ملاحظات المدير'],X.map(x=>[x.d,DC[x.cat],f(x.amt),x.st=='pending'?'بانتظار الاعتماد':x.st=='ok'?'معتمد':'مرفوض',Object.values(x.chk||{}).includes('bad')?'<b style="color:#c77700">فيه غير مطابق</b>':(x.st=='ok'?'مطابق':''),esc(x.note||'')]))}</div>
+  <div class="card"><h3>سجل العهدة</h3>${tbl(['التاريخ','البيان','استلام','مصروف أو توريد','الرصيد'],led)}</div>`;
+},
+myatt(){
+  const e=myEmp();
+  if(!e)return '<div class="card">حسابك غير مرتبط بموظف.</div>';
+  const d=ld(),ok=onlOk(e,d),L=db.hr.filter(x=>x.k=='att'&&x.eid==e.id).sort((a,b)=>a.d<b.d?1:-1).slice(0,20),r=L.find(x=>x.d==d);
+  return `<div class="card"><h3>حضوري أونلاين</h3><p>${ok?'مسموح لك بالحضور أونلاين اليوم.':'<b style="color:#b3261e">غير مسموح لك بالحضور أونلاين اليوم.</b>'} أيام الأونلاين: ${esc((e.onlDays||[]).map(i=>WD2[i]).join('، ')||(e.onl=='y'?'كل الأيام':'—'))}</p>
+  <p>${r?'حضورك اليوم: '+r.in+(r.out?' — انصرافك: '+r.out:''):'لسه ما سجلتش حضور النهارده'}</p><button class="b y" ${ok?'':'disabled'} onclick="myPunch()">${r&&!r.out?'تسجيل الانصراف':'تسجيل الحضور'}</button></div>
+  <div class="card"><h3>آخر السجلات</h3>${tbl(['التاريخ','حضور','انصراف','نوع العمل','تأخير','ساعات'],L.map(x=>[x.d,x.in||'',x.out||'',WT[x.wt]||'',x.late||'',x.hours||'']))}</div>`;
 },
 journal(){
   const o=ACC.filter(postable).map(a=>`<option value="${a[0]}">${a[0]} ${a[1]}</option>`).join('');
