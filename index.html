@@ -73,7 +73,7 @@ const TY={A:'أصل',L:'التزام',E:'حقوق ملكية',R:'إيراد',X:'
 const npf=b=>-ACC.filter(a=>'RX'.includes(a[2])).reduce((s,a)=>s+b[a[0]],0);
 const KEY='acc_db_v1';
 let db,me,cur='dash',cart=[],pcart=[],posc=[];
-const can=m=>me&&(m=='find'||m=='ntf'||m=='appr'||(m=='myatt'?!!myEmp():m=='drvapp'?(!!me.is_admin||!!myDrv()):m=='edit'?!!me.is_admin:(me.is_admin||(me.perms||[]).includes(m))));
+const can=m=>me&&(m=='find'||m=='ntf'||m=='appr'||(m=='myatt'?!!myEmp():m=='drvapp'?(!!me.is_admin||(me.perms||[]).includes('fleet')||!!myDrv()):m=='edit'?!!me.is_admin:(me.is_admin||(me.perms||[]).includes(m))));
 const pn=id=>(db.products.find(p=>p.id==id)||{}).name||'؟';
 const tbl=(h,r)=>`<table><tr>${h.map(x=>`<th>${x}</th>`).join('')}</tr>${r.map(x=>`<tr>${x.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}</table>`;
 
@@ -960,7 +960,7 @@ function flAdd(k){
   if(k=='drv')drvCust(r);
   db.fl.push(r);put('inv',r);save();go('fleet');
 }
-function flSet(id,k,v){const x=db.fl.find(y=>y.id==id);x[k]=v;put('inv',x)}
+function flSet(id,k,v){const x=db.fl.find(y=>y.id==id);x[k]=v;put('inv',x);if(x.k=='drv'&&k=='uid'){db.fl.filter(y=>y.drv==id&&['task','ctx','dx'].includes(y.k)).forEach(y=>{y.uid=v;put('inv',y)});alert(v?'تم ربط حساب المستخدم بالسائق':'تم فك الربط')}}
 function tripEnd(id){
   const t=db.fl.find(x=>x.id==id),v=prompt('قراءة عداد النهاية',t.so||0);if(v===null)return;
   const eo=+v;if(!(eo>=t.so))return alert('قراءة غير صحيحة');
@@ -1047,7 +1047,7 @@ veh(){
   <div class="card"><h3>كارت المركبة (كل السجلات والتكاليف)</h3><div class="row"><label>المركبة<select id="kv" onchange="flCardShow()">${vO()}</select></label><button class="b y" onclick="flCardShow()">عرض</button></div><div id="kvo"></div></div>`;
 },
 drv(){
-  return elig()+flForm('drv')+`<div class="card">${tbl(['الاسم','الهاتف','رقم الرخصة','الدرجة','انتهاء الرخصة','الحالة'],FL('drv').map(d=>[esc(d.name),esc(d.phone),esc(d.lic),esc(d.licCls),d.licExp?d.licExp+' '+badge(dd(d.licExp)):'',`<select onchange="flSet(${d.id},'status',this.value)"><option value="on" ${d.status!='off'?'selected':''}>نشط</option><option value="off" ${d.status=='off'?'selected':''}>موقوف</option></select>`]))}</div>`;
+  return elig()+flForm('drv')+`<div class="card">${tbl(['الاسم','الهاتف','رقم الرخصة','الدرجة','انتهاء الرخصة','الحالة','حساب المستخدم (لشاشة السائق)'],FL('drv').map(d=>[esc(d.name),esc(d.phone),esc(d.lic),esc(d.licCls),d.licExp?d.licExp+' '+badge(dd(d.licExp)):'',`<select onchange="flSet(${d.id},'status',this.value)"><option value="on" ${d.status!='off'?'selected':''}>نشط</option><option value="off" ${d.status=='off'?'selected':''}>موقوف</option></select>`,`<select onchange="flSet(${d.id},'uid',this.value)"><option value="">غير مربوط</option>${usOpts(d.uid)}</select>`]))}</div>`;
 },
 fuel(){return flForm('fuel')+`<div class="card">${tbl(['التاريخ','المركبة','السائق','لترات','المبلغ','سعر اللتر','العداد','كم منذ آخر تعبئة','كم/لتر','تكلفة الكيلومتر'],fuelRows())}<small>معدل الاستهلاك بيتحسب بين تعبئتين متتاليتين بافتراض ملء الخزان.</small></div>`},
 mnt(){
@@ -1977,7 +1977,7 @@ appr(){
 },
 drvapp(){
   const d=curDrv();
-  if(!d)return '<div class="card">لا يوجد سائق مرتبط بحسابك. اطلب من مدير الحركة ربط حسابك بسجل سائق.</div>';
+  if(!d)return '<div class="card"><h3>لا يوجد سائق مرتبط بحسابك</h3><p>اطلب من مدير الحركة يربط حسابك بسجل سائق من تبويب <b>إدارة الأسطول ← السائقون ← عمود حساب المستخدم</b>، وبعدها سجّل خروج ودخول.</p></div>';
   const bal_=custBal(d),T=FL('task').filter(t=>t.drv==d.id).sort((a,b)=>a.d<b.d?1:-1).slice(0,30),C=FL('ctx').filter(x=>x.drv==d.id).sort((a,b)=>a.id-b.id),X=FL('dx').filter(x=>x.drv==d.id).slice().reverse().slice(0,40);
   let run=0;const led=C.map(x=>{run=r2(run+(x.dir=='in'?x.amt:-x.amt));return[x.d,esc(x.desc),x.dir=='in'?f(x.amt):'',x.dir=='out'?f(x.amt):'',f(run)]}).reverse();
   const sel=FL('drv').length>1&&!myDrv()?`<div class="card"><label>السائق<select onchange="dSel=+this.value;go('drvapp')">${FL('drv').map(x=>`<option value="${x.id}" ${x.id==d.id?'selected':''}>${esc(x.name)}</option>`).join('')}</select></label></div>`:'';
